@@ -896,9 +896,6 @@ uint32_t wlanAdapterStop(IN struct ADAPTER *prAdapter)
 	/* Release all CMD/MGMT/SEC frame in command queue */
 	kalClearCommandQueue(prAdapter->prGlueInfo);
 
-	/* Release all CMD in pending command queue */
-	wlanClearPendingCommandQueue(prAdapter);
-
 #if CFG_SUPPORT_MULTITHREAD
 
 	/* Flush all items in queues for multi-thread */
@@ -2013,48 +2010,6 @@ void wlanClearRxToOsQueue(IN struct ADAPTER *prAdapter)
 
 }
 #endif
-
-/*----------------------------------------------------------------------------*/
-/*!
- * \brief This routine is used to clear all commands in pending command queue
- * \param prAdapter  Pointer of Adapter Data Structure
- *
- * \retval none
-*/
-/*----------------------------------------------------------------------------*/
-void wlanClearPendingCommandQueue(IN struct ADAPTER *prAdapter)
-{
-	struct QUE rTempCmdQue;
-	struct QUE *prTempCmdQue = &rTempCmdQue;
-	struct QUE_ENTRY *prQueueEntry = (struct QUE_ENTRY *) NULL;
-	struct CMD_INFO *prCmdInfo = (struct CMD_INFO *) NULL;
-
-	KAL_SPIN_LOCK_DECLARATION();
-	QUEUE_INITIALIZE(prTempCmdQue);
-
-	ASSERT(prAdapter);
-
-	KAL_ACQUIRE_SPIN_LOCK(prAdapter, SPIN_LOCK_CMD_PENDING);
-
-	QUEUE_MOVE_ALL(prTempCmdQue,&prAdapter->rPendingCmdQueue);
-
-	KAL_RELEASE_SPIN_LOCK(prAdapter, SPIN_LOCK_CMD_PENDING);
-
-	QUEUE_REMOVE_HEAD(prTempCmdQue, prQueueEntry, struct QUE_ENTRY *);
-
-	while (prQueueEntry) {
-		prCmdInfo = (struct CMD_INFO *) prQueueEntry;
-
-		if (prCmdInfo->pfCmdTimeoutHandler)
-			prCmdInfo->pfCmdTimeoutHandler(prAdapter, prCmdInfo);
-		else
-			wlanReleaseCommand(prAdapter, prCmdInfo, TX_RESULT_QUEUE_CLEARANCE);
-
-		nicTxCancelSendingCmd(prAdapter, prCmdInfo);
-		cmdBufFreeCmdInfo(prAdapter, prCmdInfo);
-		QUEUE_REMOVE_HEAD(prTempCmdQue, prQueueEntry, struct QUE_ENTRY *);
-	}
-}
 
 /*----------------------------------------------------------------------------*/
 /*!
@@ -8357,105 +8312,6 @@ exit:
 	}
 	return WLAN_STATUS_SUCCESS;
 }
-
-#if CFG_SUPPORT_SEND_ONLY_ONE_CFG
-uint32_t wlanFeatureToFwOnlyOneCfg(IN struct ADAPTER *prAdapter,
-		     const int8_t *pucKey, int8_t *pucValue)
-{
-	struct CMD_HEADER rCmdV1Header;
-	struct CMD_FORMAT_V1 rCmd_v1;
-	uint32_t rStatus;
-	uint8_t roffset = 0;
-
-	ASSERT(pucKey);
-
-	rCmdV1Header.cmdType = CMD_TYPE_SET;
-	rCmdV1Header.cmdVersion = CMD_VER_1;
-	rCmdV1Header.cmdBufferLen = 0;
-	rCmdV1Header.itemNum = 0;
-
-	kalMemSet(rCmdV1Header.buffer, 0, MAX_CMD_BUFFER_LENGTH);
-	kalMemSet(&rCmd_v1, 0, sizeof(struct CMD_FORMAT_V1));
-
-	if (pucKey != NULL && pucValue != NULL) {
-
-		rCmd_v1.itemType = ITEM_TYPE_STR;
-
-
-		/*send string format to firmware */
-		rCmd_v1.itemStringLength = kalStrLen(pucKey);
-
-		if (rCmd_v1.itemStringLength > MAX_CMD_NAME_MAX_LENGTH)
-			return WLAN_STATUS_INVALID_LENGTH;
-
-		kalMemZero(rCmd_v1.itemString, MAX_CMD_NAME_MAX_LENGTH);
-		kalMemCopy(rCmd_v1.itemString, pucKey,
-			   rCmd_v1.itemStringLength);
-
-
-		rCmd_v1.itemValueLength = kalStrLen(pucValue);
-
-		if (rCmd_v1.itemValueLength > MAX_CMD_VALUE_MAX_LENGTH)
-			return WLAN_STATUS_INVALID_LENGTH;
-
-		kalMemZero(rCmd_v1.itemValue, MAX_CMD_VALUE_MAX_LENGTH);
-		kalMemCopy(rCmd_v1.itemValue, pucValue,
-			   rCmd_v1.itemValueLength);
-
-
-		DBGLOG(INIT, INFO,
-			   "Send key word (%s) WITH (%s) to firmware\n",
-			   rCmd_v1.itemString, rCmd_v1.itemValue);
-
-		kalMemCopy(((struct CMD_FORMAT_V1 *)rCmdV1Header.buffer)
-			   + roffset,
-			   &rCmd_v1, sizeof(struct CMD_FORMAT_V1));
-
-
-		rCmdV1Header.cmdBufferLen =
-					sizeof(struct CMD_FORMAT_V1);
-		rCmdV1Header.itemNum = 1;
-
-		/* Send to FW */
-
-		rStatus = wlanSendSetQueryCmd(
-				/* prAdapter */
-				prAdapter,
-				/* 0x70 */
-				CMD_ID_GET_SET_CUSTOMER_CFG,
-				/* fgSetQuery */
-				TRUE,
-				/* fgNeedResp */
-				FALSE,
-				/* fgIsOid */
-				FALSE,
-				/* pfCmdDoneHandler*/
-				NULL,
-				/* pfCmdTimeoutHandler */
-				NULL,
-				/* u4SetQueryInfoLen */
-				sizeof(struct CMD_HEADER),
-				/* pucInfoBuffer */
-				(uint8_t *)&rCmdV1Header,
-				/* pvSetQueryBuffer */
-				NULL,
-				/* u4SetQueryBufferLen */
-				0);
-
-		if (rStatus == WLAN_STATUS_FAILURE)
-			DBGLOG(INIT, INFO,
-				   "[Fail]kalIoctl wifiSefCFG fail 0x%x\n",
-				   rStatus);
-
-		kalMemSet(rCmdV1Header.buffer, 0,
-			  MAX_CMD_BUFFER_LENGTH);
-		rCmdV1Header.cmdBufferLen = 0;
-	} else {
-		return WLAN_STATUS_INVALID_DATA;
-	}
-	return rStatus;
-}
-#endif
 
 #else
 uint32_t wlanCfgParse(IN struct ADAPTER *prAdapter,
