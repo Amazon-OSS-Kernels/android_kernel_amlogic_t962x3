@@ -9541,18 +9541,8 @@ int dolby_vision_process(
 	if (!is_meson_box() && !is_meson_txlx() && !is_meson_tm2())
 		return -1;
 
-#ifdef CONFIG_DV_GDBS
-	if ((dolby_vision_enable == 1) && (tv_mode == 1)) {
-		amdolby_vision_wakeup_queue();
-		if (vf) {
-			set_backlight_delay_vsync = (vf->duration >= 3200) ? 4 : 2;
-			pr_dolby_dbg("vframe_duration = %d\n", vf->duration);
-		}
-	}
-#else
 	if ((dolby_vision_enable == 1) && (tv_mode == 1))
 		amdolby_vision_wakeup_queue();
-#endif
 
 	if (dolby_vision_flags & FLAG_CERTIFICAION) {
 		if (vf) {

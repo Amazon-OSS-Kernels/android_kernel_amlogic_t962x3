@@ -224,9 +224,6 @@ struct thermal_zone_device {
 #ifdef CONFIG_AMLOGIC_TEMP_SENSOR
 	int hot_step;
 #endif
-#ifdef CONFIG_AMAZON_METRICS_LOG
-	int tripdone[THERMAL_MAX_TRIPS];
-#endif
 	int prev_low_trip;
 	int prev_high_trip;
 	unsigned int forced_passive;
