@@ -20,6 +20,7 @@
 #include <linux/module.h>
 #include <linux/moduleparam.h>
 #include <linux/kernel.h>
+#include <linux/slab.h>
 
 #include "atv_demod_debug.h"
 
@@ -190,16 +191,19 @@ static ssize_t debugfs_write(struct file *file, const char __user *userbuf,
 	struct dentry *dent = file->f_path.dentry;
 	int val = 0;
 	int i = 0;
-	char buf[20] = { 0 };
-	size_t buf_size = 0;
+	char *buf = NULL;
 	int len = ARRAY_SIZE(debugfs_dentry);
 
-	memset(buf, 0, sizeof(buf));
-	buf_size = min_t(size_t, count, (sizeof(buf) - 1));
-	if (copy_from_user(buf, userbuf, buf_size))
-		return -EFAULT;
+	buf = kzalloc(count, GFP_KERNEL);
+	if (!buf) {
+		   kfree(buf);
+		   return -ENOMEM;
+	}
 
-	buf[buf_size] = '\0';
+	if (simple_write_to_buffer(buf, count, ppos, userbuf, count)) {
+		kfree(buf);
+		return -EFAULT;
+	}
 
 	/*i = sscanf(buf, "%d", &val);*/
 	i = kstrtoint(buf, 0, &val);
@@ -210,9 +214,11 @@ static ssize_t debugfs_write(struct file *file, const char __user *userbuf,
 				break;
 			}
 		}
-	} else
+	} else {
+		kfree(buf);
 		return -EINVAL;
-
+	}
+	kfree(buf);
 	return count;
 }
 

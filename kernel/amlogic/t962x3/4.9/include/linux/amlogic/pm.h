@@ -31,6 +31,7 @@
 #define	CEC_WAKEUP			8
 #define	REMOTE_CUS_WAKEUP		9
 #define ETH_PHY_WAKEUP      10
+#define CECB_WAKEUP      11
 
 #define REMOTE_CUSTOM1_WAKEUP	13
 #define REMOTE_CUSTOM2_WAKEUP	14
