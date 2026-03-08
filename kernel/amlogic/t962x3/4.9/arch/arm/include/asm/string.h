@@ -44,6 +44,9 @@ extern void *__memset(void *dst, int v, __kernel_size_t size);
 #endif
 
 #else
+#if !defined(__NO_FORTIFY) && defined(__OPTIMIZE__) && defined(CONFIG_FORTIFY_SOURCE)
+
+#else
 #define memset(p,v,n)							\
 	({								\
 	 	void *__p = (p); size_t __n = n;			\
@@ -56,5 +59,6 @@ extern void *__memset(void *dst, int v, __kernel_size_t size);
 		(__p);							\
 	})
 
+#endif
 #endif
 #endif

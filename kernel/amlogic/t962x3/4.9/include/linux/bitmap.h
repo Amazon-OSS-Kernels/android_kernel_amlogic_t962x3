@@ -215,7 +215,8 @@ static inline void bitmap_copy(unsigned long *dst, const unsigned long *src,
 		*dst = *src;
 	else {
 		unsigned int len = BITS_TO_LONGS(nbits) * sizeof(unsigned long);
-		memcpy(dst, src, len);
+		//avoid reporting compiler incorrectly by FORTIFY_SOURCE
+		__builtin_memcpy(dst, src, len);
 	}
 }
 
