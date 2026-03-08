@@ -1997,11 +1997,11 @@ void kalRemoveProbe(IN struct GLUE_INFO *prGlueInfo)
 	}
 
 	if(psdio_mmc_start_host_func) {
-		__symbol_put("mmc_start_host");
+		kal_kallsyms_put("mmc_start_host");
 	}
 
 	if(psdio_mmc_stop_host_func) {
-		__symbol_put("mmc_stop_host");
+		kal_kallsyms_put("mmc_stop_host");
 	}
 }
 #endif
