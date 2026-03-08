@@ -101,13 +101,13 @@ static ssize_t loglevel_write_file(
 	size_t count, loff_t *ppos)
 {
 	unsigned int log_level;
-	char buf[128];
+	char buf[128] = {0};
 	int ret = 0;
 
-	count = min_t(size_t, count, (sizeof(buf)-1));
-	if (copy_from_user(buf, userbuf, count))
-		return -EFAULT;
-	buf[count] = 0;
+	ret = simple_write_to_buffer(buf, count, ppos, userbuf, count);
+	if (ret < 0)
+		return -EINVAL;
+
 	ret = kstrtoint(buf, 0, &log_level);
 	osd_log_info("log_level: %d->%d\n", osd_log_level, log_level);
 	osd_log_level = log_level;
@@ -137,9 +137,9 @@ static ssize_t logmodule_write_file(
 	buf = kmalloc(count + 1, GFP_KERNEL);
 	if (!buf)
 		return -ENOMEM;
-	if (copy_from_user(buf, userbuf, count)) {
+	if (simple_write_to_buffer(buf, count, ppos, userbuf, count)) {
 		kfree(buf);
-		return -EFAULT;
+		return -EINVAL;
 	}
 	if (buf[count - 1] == '\n')
 		buf[count - 1] = '\0';
@@ -203,9 +203,9 @@ static ssize_t osd_display_debug_write_file(struct file *file,
 	buf = kmalloc(count, GFP_KERNEL);
 	if (!buf)
 		return -ENOMEM;
-	if (copy_from_user(buf, userbuf, count)) {
+	if (simple_write_to_buffer(buf, count, ppos, userbuf, count)) {
 		kfree(buf);
-		return -EFAULT;
+		return -EINVAL;
 	}
 	ret = kstrtoint(buf, 0, &osd_display_debug_enable);
 	osd_set_display_debug(osd_id, osd_display_debug_enable);
@@ -248,9 +248,9 @@ static ssize_t blank_write_file(struct file *file, const char __user *userbuf,
 	buf = kmalloc(count, GFP_KERNEL);
 	if (!buf)
 		return -ENOMEM;
-	if (copy_from_user(buf, userbuf, count)) {
+	if (simple_write_to_buffer(buf, count, ppos, userbuf, count)) {
 		kfree(buf);
-		return -EFAULT;
+		return -EINVAL;
 	}
 	ret = kstrtoint(buf, 0, &osd_enable[osd_id]);
 	osd_enable_hw(osd_id, (osd_enable[osd_id] != 0) ? 0 : 1);
@@ -286,9 +286,9 @@ static ssize_t free_scale_write_file(struct file *file,
 	buf = kmalloc(count, GFP_KERNEL);
 	if (!buf)
 		return -ENOMEM;
-	if (copy_from_user(buf, userbuf, count)) {
+	if (simple_write_to_buffer(buf, count, ppos, userbuf, count)) {
 		kfree(buf);
-		return -EFAULT;
+		return -EINVAL;
 	}
 	ret = kstrtoint(buf, 0, &free_scale_enable);
 	osd_set_free_scale_enable_hw(osd_id, free_scale_enable);
@@ -323,11 +323,10 @@ static ssize_t free_scale_axis_write_file(struct file *file,
 	buf = kmalloc(count + 1, GFP_KERNEL);
 	if (!buf)
 		return -ENOMEM;
-	if (copy_from_user(buf, userbuf, count)) {
+	if (simple_write_to_buffer(buf, count, ppos, userbuf, count)) {
 		kfree(buf);
-		return -EFAULT;
+		return -EINVAL;
 	}
-	buf[count] = 0;
 	if (likely(parse_para(buf, 4, parsed) == 4))
 		osd_set_free_scale_axis_hw(osd_id,
 			parsed[0], parsed[1], parsed[2], parsed[3]);
@@ -365,11 +364,10 @@ static ssize_t window_axis_write_file(struct file *file,
 	buf = kmalloc(count + 1, GFP_KERNEL);
 	if (!buf)
 		return -ENOMEM;
-	if (copy_from_user(buf, userbuf, count)) {
+	if (simple_write_to_buffer(buf, count, ppos, userbuf, count)) {
 		kfree(buf);
-		return -EFAULT;
+		return -EINVAL;
 	}
-	buf[count] = 0;
 	if (likely(parse_para(buf, 4, parsed) == 4))
 		osd_set_window_axis_hw(osd_id,
 			parsed[0], parsed[1], parsed[2], parsed[3]);
@@ -411,9 +409,9 @@ static ssize_t osd_reverse_write_file(struct file *file,
 	buf = kmalloc(count, GFP_KERNEL);
 	if (!buf)
 		return -ENOMEM;
-	if (copy_from_user(buf, userbuf, count)) {
+	if (simple_write_to_buffer(buf, count, ppos, userbuf, count)) {
 		kfree(buf);
-		return -EFAULT;
+		return -EINVAL;
 	}
 	ret = kstrtoint(buf, 0, &osd_reverse);
 	if (osd_reverse >= REVERSE_MAX)
@@ -451,9 +449,9 @@ static ssize_t osd_order_write_file(struct file *file,
 	buf = kmalloc(count, GFP_KERNEL);
 	if (!buf)
 		return -ENOMEM;
-	if (copy_from_user(buf, userbuf, count)) {
+	if (simple_write_to_buffer(buf, count, ppos, userbuf, count)) {
 		kfree(buf);
-		return -EFAULT;
+		return -EINVAL;
 	}
 	ret = kstrtoint(buf, 0, &order);
 	osd_set_order_hw(osd_id, order);
@@ -489,9 +487,9 @@ static ssize_t osd_afbcd_write_file(struct file *file,
 	buf = kmalloc(count, GFP_KERNEL);
 	if (!buf)
 		return -ENOMEM;
-	if (copy_from_user(buf, userbuf, count)) {
+	if (simple_write_to_buffer(buf, count, ppos, userbuf, count)) {
 		kfree(buf);
-		return -EFAULT;
+		return -EINVAL;
 	}
 	ret = kstrtoint(buf, 0, &enable_afbcd);
 	osd_log_info("afbc: %d\n", enable_afbcd);
@@ -513,9 +511,9 @@ static ssize_t osd_clear_write_file(struct file *file,
 	buf = kmalloc(count, GFP_KERNEL);
 	if (!buf)
 		return -ENOMEM;
-	if (copy_from_user(buf, userbuf, count)) {
+	if (simple_write_to_buffer(buf, count, ppos,userbuf, count)) {
 		kfree(buf);
-		return -EFAULT;
+		return -EINVAL;
 	}
 	ret = kstrtoint(buf, 0, &osd_clear);
 	if (osd_clear)
@@ -634,9 +632,9 @@ static ssize_t osd_hwc_enable_write_file(struct file *file,
 	buf = kmalloc(count, GFP_KERNEL);
 	if (!buf)
 		return -ENOMEM;
-	if (copy_from_user(buf, userbuf, count)) {
+	if (simple_write_to_buffer(buf, count, ppos, userbuf, count)) {
 		kfree(buf);
-		return -EFAULT;
+		return -EINVAL;
 	}
 	ret = kstrtoint(buf, 0, &hwc_enable);
 	osd_log_info("hwc enable: %d\n", hwc_enable);
@@ -658,9 +656,9 @@ static ssize_t osd_do_hwc_write_file(struct file *file,
 	buf = kmalloc(count, GFP_KERNEL);
 	if (!buf)
 		return -ENOMEM;
-	if (copy_from_user(buf, userbuf, count)) {
+	if (simple_write_to_buffer(buf, count, ppos, userbuf, count)) {
 		kfree(buf);
-		return -EFAULT;
+		return -EINVAL;
 	}
 	ret = kstrtoint(buf, 0, &do_hwc);
 	osd_log_info("do_hwc: %d\n", do_hwc);
