@@ -29,6 +29,7 @@ SCRIPT_BASE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Configuration file for the build.
 CONFIG_FILE="${SCRIPT_BASE_DIR}/build_uboot_config.sh"
+PATCH_FILE="${SCRIPT_BASE_DIR}/platform_patch.txt"
 
 # Workspace directory & relevant temp folders.
 if [ -d "${PLATFORM_TARBALL}" ]; then
@@ -115,6 +116,20 @@ function setup_output_dir {
 function extract_tarball {
     echo "Extracting tarball to ${PLATFORM_EXTRACT_DIR}"
     tar xf "${PLATFORM_TARBALL}" -C ${PLATFORM_EXTRACT_DIR}
+
+    # Work around hardcoded compiler path
+    mkdir -p "${PLATFORM_EXTRACT_DIR}/prebuilts/gcc/linux-x86/aarch64"
+    ln -s "${CROSS_COMPILER_PATH}" "${PLATFORM_EXTRACT_DIR}/prebuilts/gcc/linux-x86/aarch64/gcc-linaro-aarch64-none-elf-4.9-2014.09_linux"
+}
+
+function apply_patch {
+    if [[ -f "${PATCH_FILE}" ]]
+    then
+        echo "Applying patch to ${PLATFORM_EXTRACT_DIR}"
+        pushd ${PLATFORM_EXTRACT_DIR}
+        patch -p1 < ${PATCH_FILE}
+        popd
+    fi
 }
 
 function exec_build_uboot {
@@ -185,6 +200,7 @@ display_config
 if [ -z "$(ls -A ${PLATFORM_EXTRACT_DIR})" ]; then
     extract_tarball
 fi
+apply_patch
 
 # Phase 3: build
 exec_build_uboot
