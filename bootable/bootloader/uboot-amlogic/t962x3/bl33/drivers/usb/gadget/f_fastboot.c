@@ -688,7 +688,7 @@ static void cb_getvar(struct usb_ep *ep, struct usb_request *req)
 			strncat(response, s, chars_left);
 		else
 			strncat(response, DEVICE_SERIAL, chars_left);
-#if defined(CONFIG_DEVICE_PRODUCT_ABC) || defined(CONFIG_DEVICE_PRODUCT_PRIMROSEBO)
+#if defined(CONFIG_DEVICE_PRODUCT_HAZEL) || defined(CONFIG_DEVICE_PRODUCT_PRIMROSEBO)
 	} else if (!strcmp_l1("product-variant", cmd)) {
 #if defined(CONFIG_IDME)
 #define PROD_VAR_SIZE 32

@@ -86,8 +86,8 @@ BL_COMMON_SOURCES	:=	common/bl_common.c			\
 				lib/io_storage.c			\
 				plat/common/aarch64/platform_helpers.S
 
-ifeq ($(TARGET_PRODUCT_NAME_ABC),y)
-CFLAGS += -DCONFIG_DEVICE_PRODUCT_ABC
+ifeq ($(TARGET_PRODUCT_NAME_HAZEL),y)
+CFLAGS += -DCONFIG_DEVICE_PRODUCT_HAZEL
 endif
 BUILD_BASE		:=	$(buildtree)/firmware
 #BUILD_PLAT		:=	${BUILD_BASE}/${PLAT}
