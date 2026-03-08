@@ -7859,8 +7859,14 @@ wlanoidSetKeyCfg(IN struct ADAPTER *prAdapter,
 			   prKeyCfgInfo->aucValue, 0);
 
 	wlanInitFeatureOption(prAdapter);
+
 #if CFG_SUPPORT_EASY_DEBUG
+#if CFG_SUPPORT_SEND_ONLY_ONE_CFG
+	wlanFeatureToFwOnlyOneCfg(prAdapter, prKeyCfgInfo->aucKey,
+			   prKeyCfgInfo->aucValue);
+#else
 	wlanFeatureToFw(prAdapter);
+#endif
 #endif
 
 	return rWlanStatus;
@@ -11250,11 +11256,14 @@ wlanoidSetWSCAssocInfo(IN struct ADAPTER *prAdapter,
 	DEBUGFUNC("wlanoidSetWSCAssocInfo");
 	DBGLOG(REQ, LOUD, "\r\n");
 
-	if (u4SetBufferLen == 0)
-		return WLAN_STATUS_INVALID_LENGTH;
-
 	*pu4SetInfoLen = u4SetBufferLen;
 
+	if (u4SetBufferLen == 0 ||
+		u4SetBufferLen > sizeof(prAdapter->prGlueInfo->aucWSCAssocInfoIE)) {
+		DBGLOG(REQ, WARN, "invalid u4SetBufferLen\n");
+		*pu4SetInfoLen = sizeof(prAdapter->prGlueInfo->aucWSCAssocInfoIE);
+		return WLAN_STATUS_INVALID_LENGTH;
+	}
 	kalMemCopy(prAdapter->prGlueInfo->aucWSCAssocInfoIE,
 		   pvSetBuffer, u4SetBufferLen);
 	prAdapter->prGlueInfo->u2WSCAssocInfoIELen =
