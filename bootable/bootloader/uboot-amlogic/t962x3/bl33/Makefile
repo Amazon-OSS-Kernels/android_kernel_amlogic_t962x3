@@ -566,6 +566,7 @@ ifeq ($(BUILD_TAG_SUFFIX),DIRTY)
 KBUILD_CFLAGS += -DUBOOT_BUILD_TAG_SUFFIX_DIRTY
 endif
 
+KBUILD_CFLAGS += $(call cc-option,-fno-stack-protector)
 
 KBUILD_CFLAGS	+= -g
 # $(KBUILD_AFLAGS) sets -g, which causes gcc to pass a suitable -g<format>
