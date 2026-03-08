@@ -1975,6 +1975,15 @@ struct CMD_FW_LOG_2_HOST_CTRL {
 	uint8_t ucReserve[2];
 };
 
+struct CMD_GET_MAGIC_PKT_INFO_T {
+	uint16_t u2Type;
+	uint16_t u2Len;
+	uint32_t u4ConfigMask;
+	uint32_t u4MagicPktCntTotal;
+	uint32_t u4GpioPullLowCntTotal;
+	uint32_t u4GpioPullHighCntTotal;
+};
+
 struct CMD_CHIP_CONFIG {
 	uint16_t u2Id;
 	uint8_t ucType;
@@ -3273,9 +3282,11 @@ struct CMD_SET_DEVICE_MODE {
 #define CMD_NOISE_HISTOGRAM_TYPE2 (0x51)
 #endif
 #define CMD_ADMINCTRL_CONFIG_TYPE (0x6)
-#ifdef CFG_SUPPORT_EXT_PTA_DEBUG_COMMAND
+#if CFG_SUPPORT_EXT_PTA_DEBUG_COMMAND
 #define CMD_EXT_PTA_CONFIG_TYPE (0x7)
 #endif
+/* 0x8 is reserved for GARP count */
+#define CMD_GET_MAGIC_PKT_INFO_TYPE (0x9)
 
 /* for PtaConfig field */
 #define CMD_PTA_CONFIG_PTA_EN (1<<0)
@@ -3303,7 +3314,7 @@ struct CMD_SET_DEVICE_MODE {
 #define CMD_PTA_CONFIG_COMM_ACT_BT_WF1_INBAND (1<<17)
 #define CMD_PTA_CONFIG_COMM_ACT_BT_WF1_OUTBAND (1<<18)
 
-#ifdef CFG_SUPPORT_EXT_PTA_DEBUG_COMMAND
+#if CFG_SUPPORT_EXT_PTA_DEBUG_COMMAND
 /* ext pta config related mask */
 #define CMD_EXT_PTA_CONFIG_EXT_PTA (1<<0)
 #define CMD_EXT_PTA_CONFIG_HI_RX_TAG (1<<1)
@@ -3395,7 +3406,7 @@ struct CMD_PTA_CONFIG {
 	uint32_t u4CoexMode;
 };
 
-#ifdef CFG_SUPPORT_EXT_PTA_DEBUG_COMMAND
+#if CFG_SUPPORT_EXT_PTA_DEBUG_COMMAND
 struct CMD_EXT_PTA_CONFIG {
 	uint16_t u2Type;
 	uint16_t u2Len;
@@ -3413,6 +3424,9 @@ struct CMD_EXT_PTA_CONFIG {
 	uint32_t u4CommActZbWf0Hsf;
 	uint32_t u4CommActZbWf1Hsf;
 	/* used in get */
+	uint32_t u4BtTag;
+	uint32_t u4Wf0Tag;
+	uint32_t u4Wf1Tag;
 	uint32_t u4ZbGntCnt;
 	uint32_t u4ZbAbtCnt;
 	uint32_t u4ZbLoTxReqCnt;
