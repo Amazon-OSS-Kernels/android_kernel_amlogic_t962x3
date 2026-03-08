@@ -22,6 +22,10 @@ UFBL_LIB_PATH   := $(UFBL_PATH)/features
 UFBL_INC_PATH   := $(UFBL_PATH)/include
 UFBL_PROJECT    := $(BOOTLOADER_PROJECT_TARGET)
 
+ifeq ($(TARGET_PRODUCT_NAME_PRIMROSE), y)
+UFBL_PROJECT    := primrose
+endif
+
 ifeq ($(TARGET_PRODUCT_NAME_HAZEL), y)
 UFBL_PROJECT    := hazel
 endif

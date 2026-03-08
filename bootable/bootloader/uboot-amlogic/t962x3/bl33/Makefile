@@ -246,8 +246,14 @@ ifeq ($(HOSTARCH),$(ARCH))
 CROSS_COMPILE ?=
 endif
 
+ifeq ($(CROSS_COMPILE_STANDALONE),)
+CROSS_COMPILE ?= $(abspath $(TOPDIR))/../../../../../prebuilts/gcc/linux-x86/aarch64/gcc-linaro-aarch64-none-elf-4.9-2014.09_linux/bin/aarch64-none-elf-
+CROSS_COMPILE_T32 ?= $(abspath $(TOPDIR))/../../../../../prebuilts/gcc/linux-x86/arm/CodeSourcery/CodeSourcery/Sourcery_G++_Lite/bin/arm-none-eabi-
+else
 CROSS_COMPILE ?= aarch64-none-elf-
 CROSS_COMPILE_T32 ?= arm-none-eabi-
+endif
+
 export CROSS_COMPILE
 export CROSS_COMPILE_T32
 
@@ -361,7 +367,7 @@ KBUILD_CPPFLAGS := -D__KERNEL__ -D__UBOOT__
 
 KBUILD_CFLAGS   := -Wall -Wstrict-prototypes \
 		   -Wno-format-security \
-		   -fno-builtin -ffreestanding
+		   -fno-builtin -ffreestanding -fstack-protector-strong
 KBUILD_AFLAGS   := -D__ASSEMBLY__
 
 # Read UBOOTRELEASE from include/config/uboot.release (if it exists)
@@ -560,7 +566,6 @@ ifeq ($(BUILD_TAG_SUFFIX),DIRTY)
 KBUILD_CFLAGS += -DUBOOT_BUILD_TAG_SUFFIX_DIRTY
 endif
 
-KBUILD_CFLAGS += $(call cc-option,-fno-stack-protector)
 
 KBUILD_CFLAGS	+= -g
 # $(KBUILD_AFLAGS) sets -g, which causes gcc to pass a suitable -g<format>
