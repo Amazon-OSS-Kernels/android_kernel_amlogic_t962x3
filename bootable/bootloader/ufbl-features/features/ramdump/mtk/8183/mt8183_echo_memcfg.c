@@ -1,7 +1,6 @@
 /*
  * Copyright (c) 2014 - 2019 Amazon.com, Inc. or its affiliates.  All rights reserved.
  *
- * PROPRIETARY/CONFIDENTIAL.  USE IS SUBJECT TO LICENSE TERMS.
  */
 
 #include <compiler.h>
