@@ -299,6 +299,8 @@ struct AIS_FSM_INFO {
 
 	/* Scan target channel when device roaming */
 	uint8_t fgTargetChnlScanIssued;
+
+	uint8_t fgIsReqDisconnectPending;
 };
 
 enum WNM_AIS_BSS_TRANSITION {
@@ -492,6 +494,7 @@ void aisFsmRunEventRoamingDiscovery(IN struct ADAPTER
 
 enum ENUM_AIS_STATE aisFsmRoamingScanResultsUpdate(
 				   IN struct ADAPTER *prAdapter);
+#endif /*CFG_SUPPORT_ROAMING */
 
 void aisFsmRoamingDisconnectPrevAP(IN struct ADAPTER
 				   *prAdapter,
@@ -500,7 +503,6 @@ void aisFsmRoamingDisconnectPrevAP(IN struct ADAPTER
 void aisUpdateBssInfoForRoamingAP(IN struct ADAPTER
 				  *prAdapter, IN struct STA_RECORD *prStaRec,
 				  IN struct SW_RFB *prAssocRspSwRfb);
-#endif /*CFG_SUPPORT_ROAMING */
 
 /*----------------------------------------------------------------------------*/
 /* Timeout Handling                                                           */

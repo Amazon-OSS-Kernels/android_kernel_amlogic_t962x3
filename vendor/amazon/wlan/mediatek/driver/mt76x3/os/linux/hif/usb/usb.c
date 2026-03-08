@@ -297,6 +297,8 @@ static int mtk_usb_suspend(struct usb_interface *intf, pm_message_t message)
 
 	halPreSuspendCmd(prGlueInfo->prAdapter);
 
+	DBGLOG(HAL, STATE, "Wait for USB pre_suspend\n");
+
 	while (prGlueInfo->rHifInfo.state != USB_STATE_PRE_SUSPEND_DONE) {
 		if (count > 500) {
 			DBGLOG(HAL, ERROR, "pre_suspend timeout\n");
@@ -306,6 +308,8 @@ static int mtk_usb_suspend(struct usb_interface *intf, pm_message_t message)
 		mdelay(2);
 		count++;
 	}
+
+	DBGLOG(HAL, STATE, "USB pre_suspend complete(%d)\n", count);
 
 	glUsbSetState(&prGlueInfo->rHifInfo, USB_STATE_SUSPEND);
 	halDisableInterrupt(prGlueInfo->prAdapter);
@@ -452,7 +456,7 @@ u_int8_t mtk_usb_vendor_request(IN struct GLUE_INFO *prGlueInfo, IN uint8_t uEnd
 #if CFG_FTV_abc123_135_PATCH
 	if (ret != TransferBufferLength) {
 		DBGLOG(REQ, ERROR, "USB bus failure, trigger chip reset\n");
-		GL_RESET_TRIGGER(prGlueInfo->prAdapter, RST_FLAG_CHIP_RESET);
+		GL_RESET_TRIGGER(prGlueInfo->prAdapter, RST_FLAG_CHIP_RESET, RST_HIF_FAIL);
 	}
 #endif
 
@@ -1707,6 +1711,7 @@ void kalRemoveProbe(IN struct GLUE_INFO *prGlueInfo)
 				func_name, WIFI_DONGLE_RESET_GPIO_PIN, 1);
 		pFunc(WIFI_DONGLE_RESET_GPIO_PIN, 1);
 	}
+	kal_kallsyms_put(func_name);
 
 }
 #endif

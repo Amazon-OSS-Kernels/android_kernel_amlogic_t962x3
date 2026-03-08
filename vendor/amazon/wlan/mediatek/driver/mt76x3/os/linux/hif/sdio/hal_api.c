@@ -445,9 +445,8 @@ u_int8_t halSetDriverOwn(IN struct ADAPTER *prAdapter)
 				prAdapter->u4OwnFailedLogCount++;
 				if (prAdapter->u4OwnFailedLogCount > LP_OWN_BACK_FAILED_RESET_CNT) {
 					/* Trigger RESET */
-					glGetRstReason(RST_DRV_OWN_FAIL);
 					GL_RESET_TRIGGER(prAdapter,
-						RST_FLAG_DO_CORE_DUMP);
+						RST_FLAG_DO_CORE_DUMP, RST_DRV_OWN_FAIL);
 				}
 				GET_CURRENT_SYSTIME(&prAdapter->rLastOwnFailedLogTime);
 			}
@@ -514,9 +513,8 @@ u_int8_t halSetDriverOwn(IN struct ADAPTER *prAdapter)
 
 				if (fgTimeout) {
 					/* Trigger RESET */
-					glGetRstReason(RST_DRV_OWN_FAIL);
 					GL_RESET_TRIGGER(prAdapter,
-						RST_FLAG_DO_CORE_DUMP);
+						RST_FLAG_DO_CORE_DUMP, RST_DRV_OWN_FAIL);
 				}
 
 				break;
@@ -1393,6 +1391,9 @@ void halRxSDIOAggReceiveRFBs(IN struct ADAPTER *prAdapter)
 	struct GL_HIF_INFO *prHifInfo;
 	struct SDIO_RX_COALESCING_BUF *prRxBuf;
 	u_int8_t fgNoFreeBuf = FALSE;
+	static uint32_t u4PrevTime = 0;
+	static uint32_t u4CurrTime = 0;
+	static uint32_t u4CurrCount = 0;
 
 	SDIO_TIME_INTERVAL_DEC();
 
@@ -1417,7 +1418,8 @@ void halRxSDIOAggReceiveRFBs(IN struct ADAPTER *prAdapter)
 			__func__, u2RxPktNum);
 
 			halProcessAbnormalInterrupt(prAdapter);
-			GL_RESET_TRIGGER(prAdapter, RST_FLAG_DO_CORE_DUMP);
+			GL_RESET_TRIGGER(prAdapter, RST_FLAG_DO_CORE_DUMP,
+								RST_PROCESS_ABNORMAL_INT);
 			return;
 		}
 
@@ -1434,7 +1436,14 @@ void halRxSDIOAggReceiveRFBs(IN struct ADAPTER *prAdapter)
 		mutex_unlock(&prHifInfo->rRxFreeBufQueMutex);
 
 		if (fgNoFreeBuf) {
-			DBGLOG(RX, TRACE, "[%s] No free Rx buffer\n", __func__);
+			u4CurrTime = (uint32_t) kalGetTimeTick();
+			u4CurrCount++;
+
+			if(u4CurrTime >= u4PrevTime +1000) {
+				DBGLOG(HAL, ERROR, "time[%lu] count[%lu] No free Rx buffer\n", (u4CurrTime-u4PrevTime), u4CurrCount);
+				u4CurrCount = 0;
+				u4PrevTime = u4CurrTime;
+			}
 			prHifInfo->rStatCounter.u4RxBufUnderFlowCnt++;
 
 			if (prAdapter->prGlueInfo->ulFlag & GLUE_FLAG_HALT) {
@@ -1467,7 +1476,8 @@ void halRxSDIOAggReceiveRFBs(IN struct ADAPTER *prAdapter)
 			if (!u4RxLength) {
 				DBGLOG(RX, ERROR, "[%s] RxLength == 0\n", __func__);
 				halProcessAbnormalInterrupt(prAdapter);
-				GL_RESET_TRIGGER(prAdapter, RST_FLAG_DO_CORE_DUMP);
+				GL_RESET_TRIGGER(prAdapter, RST_FLAG_DO_CORE_DUMP,
+							RST_PROCESS_ABNORMAL_INT);
 				return;
 			}
 
@@ -1480,7 +1490,8 @@ void halRxSDIOAggReceiveRFBs(IN struct ADAPTER *prAdapter)
 					__func__, (ALIGN_4(u4RxLength + HIF_RX_HW_APPENDED_LEN)), u4RxAvailAggLen);
 
 				halProcessAbnormalInterrupt(prAdapter);
-				GL_RESET_TRIGGER(prAdapter, RST_FLAG_DO_CORE_DUMP);
+				GL_RESET_TRIGGER(prAdapter, RST_FLAG_DO_CORE_DUMP,
+							RST_PROCESS_ABNORMAL_INT);
 				return;
 			}
 		}
@@ -2172,7 +2183,8 @@ void halProcessAbnormalInterrupt(IN struct ADAPTER *prAdapter)
 		"Skip all SDIO Rx due to Rx underflow error!\n");
 		prAdapter->prGlueInfo->rHifInfo.fgSkipRx = TRUE;
 		halDumpHifStatus(prAdapter, NULL, 0);
-		GL_RESET_TRIGGER(prAdapter, RST_FLAG_DO_CORE_DUMP);
+		GL_RESET_TRIGGER(prAdapter, RST_FLAG_DO_CORE_DUMP,
+						RST_PROCESS_ABNORMAL_INT);
 	}
 
 	halDumpIntLog(prAdapter);
@@ -2301,6 +2313,9 @@ void halDeAggRxPktProc(struct ADAPTER *prAdapter,
 	u_int8_t fgDeAggErr = FALSE;
 	struct SDIO_INT_LOG_T *prIntLog;
 	uint64_t u8Current = 0;
+	static uint32_t u4PrevTime = 0;
+	static uint32_t u4CurrTime = 0;
+	static uint32_t u4CurrCount = 0;
 
 	KAL_SPIN_LOCK_DECLARATION();
 	SDIO_TIME_INTERVAL_DEC();
@@ -2328,6 +2343,14 @@ void halDeAggRxPktProc(struct ADAPTER *prAdapter,
 	KAL_RELEASE_SPIN_LOCK(prAdapter, SPIN_LOCK_RX_FREE_QUE);
 
 	if (fgReschedule) {
+		u4CurrTime = (uint32_t) kalGetTimeTick();
+		u4CurrCount++;
+
+		if(u4CurrTime >= u4PrevTime +1000) {
+			DBGLOG(HAL, ERROR, "time[%lu] count[%lu] fgReschedule\n", (u4CurrTime-u4PrevTime), u4CurrCount);
+			u4CurrCount = 0;
+			u4PrevTime = u4CurrTime;
+		}
 		mutex_lock(&prHifInfo->rRxDeAggQueMutex);
 
 		QUEUE_INSERT_HEAD(&prHifInfo->rRxDeAggQueue,
@@ -2451,11 +2474,14 @@ void halDeAggRxPktProc(struct ADAPTER *prAdapter,
 
 void halDeAggRxPktWorker(struct work_struct *work)
 {
+#define WORKER_LOOP_MAX 1000
+#define WORKER_SLEEP_TIME 20
 	struct GLUE_INFO *prGlueInfo;
 	struct GL_HIF_INFO *prHifInfo;
 	struct ADAPTER *prAdapter;
 	struct SDIO_RX_COALESCING_BUF *prRxBuf;
 	struct RX_CTRL *prRxCtrl;
+	static uint16_t loopCount = 0;
 
 	if (g_u4HaltFlag)
 		return;
@@ -2477,6 +2503,13 @@ void halDeAggRxPktWorker(struct work_struct *work)
 
 	mutex_unlock(&prHifInfo->rRxDeAggQueMutex);
 	while (prRxBuf) {
+		loopCount++;
+		if(loopCount > WORKER_LOOP_MAX) {
+			DBGLOG(HAL, ERROR, "looped %d times, sleep for %dms\n",
+				WORKER_LOOP_MAX, WORKER_SLEEP_TIME);
+			loopCount = 0;
+			kalMsleep(WORKER_SLEEP_TIME);
+		}
 		halDeAggRxPktProc(prAdapter, prRxBuf);
 
 		if (prGlueInfo->ulFlag & GLUE_FLAG_HALT)
@@ -2486,6 +2519,7 @@ void halDeAggRxPktWorker(struct work_struct *work)
 		QUEUE_REMOVE_HEAD(&prHifInfo->rRxDeAggQueue, prRxBuf, struct SDIO_RX_COALESCING_BUF *);
 		mutex_unlock(&prHifInfo->rRxDeAggQueMutex);
 	}
+	loopCount = 0;
 }
 
 void halDeAggRxPkt(struct ADAPTER *prAdapter, struct SDIO_RX_COALESCING_BUF *prRxBuf)
