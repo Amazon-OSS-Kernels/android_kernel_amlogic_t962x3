@@ -264,11 +264,13 @@ static void current_save(void)
 	debug("--- current_save ---\n");
 
 	if (current_mtd_dev) {
+		memset(buf, 0, sizeof(buf));
 		sprintf(buf, "%s%d,%d", MTD_DEV_TYPE(current_mtd_dev->id->type),
 					current_mtd_dev->id->num, current_mtd_partnum);
 
 		setenv("partition", buf);
 		strncpy(last_partition, buf, PARTITION_MAXLEN - 1);
+		last_partition[PARTITION_MAXLEN - 1] = '\0';
 
 		debug("=> partition %s\n", buf);
 	} else {

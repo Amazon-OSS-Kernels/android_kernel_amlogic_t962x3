@@ -85,6 +85,11 @@ int cmd_efuse(int argc, char * const argv[], char *buf)
 		printf("\n error: size is zero!!!\n");
 		return -1;
 	}
+	if (size > EFUSE_BYTES) {
+		printf("\n error: size is too large!!!\n");
+		printf("\n offset should be less than %d!\n", max_size);
+		return -1;
+	}
 	if (offset > max_size) {
 		printf("\n error: offset is too large!!!\n");
 		printf("\n offset should be less than %d!\n", max_size);

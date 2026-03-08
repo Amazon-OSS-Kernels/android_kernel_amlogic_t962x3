@@ -127,7 +127,7 @@
 #define CONFIG_IR_REMOTE_POWER_UP_KEY_VAL3 0xF20DFE01 //amlogic tv ir --- ch-
 #define CONFIG_IR_REMOTE_POWER_UP_KEY_VAL4 0XBA45BD02 //amlogic small ir--- power
 #define CONFIG_IR_REMOTE_POWER_UP_KEY_VAL5 0xe51afb04
-/*https://www.amazon.com*/
+/* www.amazon.com */
 
 #define CONFIG_IR_REMOTE_POWER_UP_KEY_VAL6	0xb9467d02 /* ABC power key */
 #define CONFIG_IR_REMOTE_POWER_UP_KEY_VAL7	0xa05f7d02 /* ABC netflix key */
@@ -137,6 +137,8 @@
 #define CONFIG_IR_REMOTE_POWER_UP_KEY_VAL11	0x609f7d02 /* ABC home key */
 #define CONFIG_IR_REMOTE_POWER_UP_KEY_VAL12	0xb54a7d02 /* ABC enter key */
 #define CONFIG_IR_REMOTE_POWER_UP_KEY_VAL13	0x5fa07d02 /* ABC voice search key */
+#define CONFIG_IR_REMOTE_POWER_UP_KEY_VAL14	0x5ba47d02 /* ABS presetting1 key */
+#define CONFIG_IR_REMOTE_POWER_UP_KEY_VAL15	0x5aa57d02 /* ABS presetting2 key */
 
 /*config the default parameters for adc power key*/
 #define CONFIG_ADC_POWER_KEY_CHAN   2  /*channel range: 0-7*/
@@ -546,6 +548,7 @@
 #define CONFIG_BOOTCOMMAND "run storeboot"
 
 //#define CONFIG_ENV_IS_NOWHERE  1
+#define CONFIG_NO_ENV_PART   1
 #define CONFIG_ENV_SIZE   (64*1024)
 #define CONFIG_FIT 1
 #define CONFIG_OF_LIBFDT 1

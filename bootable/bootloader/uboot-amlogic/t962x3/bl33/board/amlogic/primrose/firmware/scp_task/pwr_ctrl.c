@@ -233,6 +233,14 @@ static unsigned int detect_key(unsigned int suspend_from)
 			irq[IRQ_AO_IR_DEC] = 0xFFFFFFFF;
 
 			switch (remote_detect_key()) {
+				case CONFIG_IR_REMOTE_POWER_UP_KEY_VAL15:
+					exit_reason = CECB_WAKEUP;
+					break;
+
+				case CONFIG_IR_REMOTE_POWER_UP_KEY_VAL14:
+					exit_reason = CHARGING_WAKEUP;
+					break;
+
 				case CONFIG_IR_REMOTE_POWER_UP_KEY_VAL10:
 					exit_reason = REMOTE_CUSTOM4_WAKEUP;
 					break;

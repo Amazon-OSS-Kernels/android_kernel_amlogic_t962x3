@@ -32,11 +32,19 @@
  */
 struct eth_board_socket* eth_board_setup(char *name){
 	struct eth_board_socket* new_board;
+	char *p = NULL;
 	new_board= (struct eth_board_socket*) malloc(sizeof(struct eth_board_socket));
 	if (NULL == new_board) return NULL;
 	if (name != NULL) {
-		new_board->name=(char*)malloc(strlen(name));
+		p = (char*)malloc(strlen(name) + 2);
+		if (!p) {
+			printf(" board name out of memory\n");
+                  	free(new_board);
+			return NULL;
+		}
+		new_board->name = p;
 		strncpy(new_board->name,name,strlen(name));
+		new_board->name[strlen(name)] = '\0';
 	}else{
 		new_board->name="gxb";
 	}

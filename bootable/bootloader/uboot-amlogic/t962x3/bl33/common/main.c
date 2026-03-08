@@ -13,6 +13,10 @@
 #include <version.h>
 #include <asm/arch/timer.h>
 
+#ifdef CONFIG_DEVICE_PRODUCT_PRIMROSEBO
+#include <asm/arch/secure_apb.h>
+#endif
+
 #ifdef CONFIG_MDUMP_COMPRESS
 #include <ramdump.h>
 #endif
@@ -256,6 +260,7 @@ void main_loop(void)
 	if (is_transition_bootmode) {
 		if (!is_transition_done) {
 			ret = 0;
+#ifndef CONFIG_DEVICE_PRODUCT_PRIMROSEBO
 			ret += run_command("amlmmc erase dfs", 0);
 			ret += run_command("amlmmc erase dkernel", 0);
 			ret += run_command("amlmmc erase diag_userdata", 0);
@@ -265,7 +270,7 @@ void main_loop(void)
 #endif
 			if (ret)
 				printf("Erase Diag partitions error\n");
-
+#endif
 			ret = ret ? ret : run_command("idme bootmode 1", 0);
 			if (ret) {
 				printf("Change to FOS bootmode error\n");
@@ -301,7 +306,13 @@ void main_loop(void)
 				if (ret < 0) {
 					printf("Transition done GUI init failure\n");
 				} else {
+#ifndef CONFIG_DEVICE_PRODUCT_PRIMROSEBO
 					show_transition_done(1, 1, 0);
+#else
+					int AML_RPMB_STATE = ((readl(AO_SEC_GP_CFG7))>>22) & 0x01;
+					show_transition_done(1, 1, !(AML_RPMB_STATE));
+					run_command("leds_state 0 2 4", 0);
+#endif
 					printf("Transition done GUI init done\n");
 				}
 				watchdog_disable();

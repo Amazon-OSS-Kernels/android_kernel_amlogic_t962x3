@@ -12,9 +12,9 @@
 
 os_usb_vid_pid array_mtk_vid_pid[] = {
     {0x0E8D, 0x7668, "MTK7668"},    // 7668
+    {0x0E8D, 0x7663, "MTK7663"},    // 7663
     {0x0E8D, 0x76A0, "MTK7662T"},   // 7662T
     {0x0E8D, 0x76A1, "MTK7632T"},   // 7632T
-    {0x0E8D, 0x7663, "MTK7663"},   // 7663
 };
 
 int max_mtk_wifi_id = (sizeof(array_mtk_vid_pid) / sizeof(array_mtk_vid_pid[0]));
@@ -299,28 +299,19 @@ int Ldbtusb_connect (btusbdev_t *dev)
     return ret;
 }
 
-static int checkUsbDevicePort(struct usb_device* udev, u16 vendorID, u16 productID, u8 port)
+static int checkUsbDevicePort(struct usb_device* udev, u16 vendorID, u16 productID)
 {
     struct usb_device* pdev = NULL;
     int i;
-#if defined (CONFIG_USB_PREINIT)
-    usb_stop(port);
-    if (usb_post_init(port) == 0)
-#else
-    usb_stop();
-    if (usb_init() == 0)
-#endif
+    for (i= 0; i < USB_MAX_DEVICE; i++)
     {
-	for (i= 0; i < USB_MAX_DEVICE; i++)
-	{
-            pdev = usb_get_dev_index(i); /* get device */
-            if ((pdev != NULL) && (pdev->descriptor.idVendor == vendorID) && (pdev->descriptor.idProduct == productID))  // MTK 7662
-            {
-                usb_debug("OK\n");
-                memcpy(udev, pdev, sizeof(struct usb_device));
-                return 0 ;
-            }
-	}
+       pdev = usb_get_dev_index(i); /* get device */
+       if ((pdev != NULL) && (pdev->descriptor.idVendor == vendorID) && (pdev->descriptor.idProduct == productID))  // MTK 7662
+       {
+           usb_debug("OK\n");
+           memcpy(udev, pdev, sizeof(struct usb_device));
+           return 0 ;
+       }
     }
     return -1;
 }
@@ -398,14 +389,25 @@ static int findUsbDevice(struct usb_device* udev)
         // search mtk bt usb port
         idx = atoi(pBTUsbPort);
         usb_debug("find mtk bt usb device from usb prot[%d]\n", idx);
-        while (i < 1 /*max_mtk_wifi_id*/) {
-            ret = checkUsbDevicePort(udev, (pmtk_wifi + i)->vid, (pmtk_wifi + i)->pid, idx);
-            if (ret == 0) break;
-            i++;
-        }
-        if(ret == 0)
+
+//do usb init once before matching chip pid/vid
+#if defined (CONFIG_USB_PREINIT)
+        usb_stop(idx);
+        if (usb_post_init(idx) == 0)
+#else
+        usb_stop();
+        if (usb_init() == 0)
+#endif
         {
-            return 0;
+            while (i < max_mtk_wifi_id) {
+                ret = checkUsbDevicePort(udev, (pmtk_wifi + i)->vid, (pmtk_wifi + i)->pid);
+                if (ret == 0) break;
+                i++;
+            }
+            if(ret == 0)
+            {
+                return 0;
+            }
         }
     }
 
@@ -424,18 +426,29 @@ static int findUsbDevice(struct usb_device* udev)
     for(idx = 0; idx < u8UsbPortCount; idx++)
     {
         i = 0;
-        while (i < max_mtk_wifi_id) {
-            ret = checkUsbDevicePort(udev, (pmtk_wifi + i)->vid, (pmtk_wifi + i)->pid, idx);
-            if (ret == 0) break;
-            i++;
-        }
-        if(ret == 0)
+
+//do usb init once for each port before matching chip pid/vid
+#if defined (CONFIG_USB_PREINIT)
+        usb_stop(idx);
+        if (usb_post_init(idx) == 0)
+#else
+        usb_stop();
+        if (usb_init() == 0)
+#endif
         {
-            // set bt_usb_port to store mt bt usb device port
-            snprintf(portNumStr, sizeof(portNumStr), "%d", idx);
-            setenv(BT_USB_PORT, portNumStr);
-            saveenv();
-            return 0;
+            while (i < max_mtk_wifi_id) {
+                ret = checkUsbDevicePort(udev, (pmtk_wifi + i)->vid, (pmtk_wifi + i)->pid);
+                if (ret == 0) break;
+                i++;
+            }
+            if(ret == 0)
+            {
+                // set bt_usb_port to store mt bt usb device port
+                snprintf(portNumStr, sizeof(portNumStr), "%d", idx);
+                setenv(BT_USB_PORT, portNumStr);
+                saveenv();
+                return 0;
+            }
         }
     }
     if(pBTUsbPort != NULL)

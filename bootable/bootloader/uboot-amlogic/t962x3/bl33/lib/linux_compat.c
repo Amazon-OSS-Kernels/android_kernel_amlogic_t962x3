@@ -45,3 +45,7 @@ void *kmem_cache_alloc(struct kmem_cache *obj, int flag)
 {
 	return memalign(ARCH_DMA_MINALIGN, obj->sz);
 }
+
+void __stack_chk_fail(void) {
+	panic("Stack Check Exception");
+}
