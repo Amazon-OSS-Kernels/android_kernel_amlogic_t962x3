@@ -1356,7 +1356,7 @@ void btmtk_usb_toggle_rst_pin(void)
 		goto exit;
 	}  else
 		BTUSB_INFO("%s: No Exported Func Found btmtk_set_reset_pin_state", __func__);
- 
+
 	if (pf_pdwndFunc) {
 		BTUSB_INFO("%s: Invoke PDWNC_SetBTInResetState(%d)", __func__, 1);
 		pf_pdwndFunc(1);
@@ -2277,7 +2277,12 @@ static void btmtk_usb_load_code_from_bin(u8 **image, char *bin_name,
 		} else if (retry <= 0) {
 			*image = NULL;
 			BTUSB_ERR("%s: request_firmware %d times fail!!! err = %d", __func__, RETRY_TIMES, err);
-#ifdef CONFIG_AMAZON_METRICS_LOG
+#ifdef CONFIG_AMAZON_MINERVA_METRICS_LOG
+			log_counter_to_vitals_v2(ANDROID_LOG_INFO,
+					BT_GROUP_ID, BT_SCHEMA_ID, BT_DOMAIN, BT_PROGRAM,
+					BT_OPERATION, BT_KEY_PROBE, 1, "count",
+					"request-fw-fail", VITALS_NORMAL, NULL, NULL);
+#elif defined(CONFIG_AMAZON_METRICS_LOG)
 			log_counter_to_vitals(ANDROID_LOG_INFO, BT_DOMAIN, BT_PROGRAM,
 					BT_OPERATION, BT_KEY_PROBE, 1, "count",
 					"request-fw-fail", VITALS_NORMAL);
@@ -2291,7 +2296,12 @@ static void btmtk_usb_load_code_from_bin(u8 **image, char *bin_name,
 	*image = kvzalloc(fw_entry->size, GFP_KERNEL);
 	if (*image == NULL) {
 		BTUSB_ERR("%s: kzalloc failed!! error code = %d", __func__, err);
-#ifdef CONFIG_AMAZON_METRICS_LOG
+#ifdef CONFIG_AMAZON_MINERVA_METRICS_LOG
+		log_counter_to_vitals_v2(ANDROID_LOG_INFO,
+				BT_GROUP_ID, BT_SCHEMA_ID, BT_DOMAIN, BT_PROGRAM,
+				BT_OPERATION, BT_KEY_PROBE, 1, "count",
+				"mem-alloc-fail", VITALS_NORMAL, NULL, NULL);
+#elif defined(CONFIG_AMAZON_METRICS_LOG)
 		log_counter_to_vitals(ANDROID_LOG_INFO, BT_DOMAIN, BT_PROGRAM,
 				BT_OPERATION, BT_KEY_PROBE, 1, "count",
 				"mem-alloc-fail", VITALS_NORMAL);
@@ -3773,7 +3783,6 @@ static int btmtk_usb_handle_entering_WoBLE_state(void)
 		ret = btmtk_usb_send_woble_suspend_cmd();
 		return ret;
 	}
-
 Finish:
 	if (is_support_unify_woble(g_data)) {
 		if (ret) {
@@ -3782,7 +3791,12 @@ Finish:
 				btmtk_usb_start_reset_dongle_progress();
 				btmtk_usb_woble_wake_lock(g_data);
 			}
-#ifdef CONFIG_AMAZON_METRICS_LOG
+#ifdef CONFIG_AMAZON_MINERVA_METRICS_LOG
+			log_counter_to_vitals_v2(ANDROID_LOG_INFO,
+					BT_GROUP_ID, BT_SCHEMA_ID, BT_DOMAIN, BT_PROGRAM,
+					BT_OPERATION, BT_KEY_WOBLE, 1, "count",
+					"enter-woble-fail", VITALS_NORMAL, NULL, NULL);
+#elif defined(CONFIG_AMAZON_METRICS_LOG)
 			log_counter_to_vitals(ANDROID_LOG_INFO, BT_DOMAIN, BT_PROGRAM,
 					BT_OPERATION, BT_KEY_WOBLE, 1, "count",
 					"enter-woble-fail", VITALS_NORMAL);
@@ -4393,7 +4407,7 @@ static int btmtk_usb_check_need_load_rom_patch_7668(void)
 	int ret = -1;
 
 	BTUSB_DBG_RAW(cmd, sizeof(cmd), "%s: Send CMD:", __func__);
-	ret = btmtk_usb_send_wmt_cmd(cmd, sizeof(cmd), event, sizeof(event), 20, 0, false);
+	ret = btmtk_usb_send_wmt_cmd(cmd, sizeof(cmd), event, sizeof(event), 20, 20, false);
 	/* can't get correct event */
 	if (ret < 0)
 		return PATCH_ERR;
@@ -4478,7 +4492,12 @@ static int btmtk_usb_load_rom_patch_7668(void)
 
 		if (patch_status > PATCH_NEED_DOWNLOAD || patch_status == PATCH_ERR) {
 			BTUSB_ERR("%s: patch_status error", __func__);
-#ifdef CONFIG_AMAZON_METRICS_LOG
+#ifdef CONFIG_AMAZON_MINERVA_METRICS_LOG
+			log_counter_to_vitals_v2(ANDROID_LOG_INFO,
+					BT_GROUP_ID, BT_SCHEMA_ID, BT_DOMAIN, BT_PROGRAM,
+					BT_OPERATION, BT_KEY_PROBE, 1, "count",
+					"patch-status-error", VITALS_NORMAL, NULL, NULL);
+#elif defined(CONFIG_AMAZON_METRICS_LOG)
 			log_counter_to_vitals(ANDROID_LOG_INFO, BT_DOMAIN, BT_PROGRAM,
 					BT_OPERATION, BT_KEY_PROBE, 1, "count",
 					"patch-status-error", VITALS_NORMAL);
@@ -4499,7 +4518,12 @@ static int btmtk_usb_load_rom_patch_7668(void)
 				ret = btmtk_usb_send_wmt_cfg();
 				if (ret < 0) {
 					BTUSB_ERR("%s: send wmt cmd failed(%d)", __func__, ret);
-#ifdef CONFIG_AMAZON_METRICS_LOG
+#ifdef CONFIG_AMAZON_MINERVA_METRICS_LOG
+					log_counter_to_vitals_v2(ANDROID_LOG_INFO,
+							BT_GROUP_ID, BT_SCHEMA_ID, BT_DOMAIN, BT_PROGRAM,
+							BT_OPERATION, BT_KEY_PROBE, 1, "count",
+							"wmt-cfg-fail", VITALS_NORMAL, NULL, NULL);
+#elif defined(CONFIG_AMAZON_METRICS_LOG)
 					log_counter_to_vitals(ANDROID_LOG_INFO, BT_DOMAIN, BT_PROGRAM,
 							BT_OPERATION, BT_KEY_PROBE, 1, "count",
 							"wmt-cfg-fail", VITALS_NORMAL);
@@ -4513,7 +4537,12 @@ static int btmtk_usb_load_rom_patch_7668(void)
 
 	if (patch_status == PATCH_IS_DOWNLOAD_BY_OTHER) {
 		BTUSB_WARN("%s: Hold by another fun more than 2 seconds", __func__);
-#ifdef CONFIG_AMAZON_METRICS_LOG
+#ifdef CONFIG_AMAZON_MINERVA_METRICS_LOG
+		log_counter_to_vitals_v2(ANDROID_LOG_INFO,
+				BT_GROUP_ID, BT_SCHEMA_ID, BT_DOMAIN, BT_PROGRAM,
+				BT_OPERATION, BT_KEY_PROBE, 1, "count",
+				"hold-by-others", VITALS_NORMAL, NULL, NULL);
+#elif defined(CONFIG_AMAZON_METRICS_LOG)
 		log_counter_to_vitals(ANDROID_LOG_INFO, BT_DOMAIN, BT_PROGRAM,
 				BT_OPERATION, BT_KEY_PROBE, 1, "count",
 				"hold-by-others", VITALS_NORMAL);
@@ -4585,7 +4614,12 @@ static int btmtk_usb_load_partial_rom_patch_7668(u32 patch_len, int offset)
 
 	buf = usb_alloc_coherent(g_data->udev, UPLOAD_PATCH_UNIT, GFP_KERNEL, &data_dma);
 	if (!buf) {
-#ifdef CONFIG_AMAZON_METRICS_LOG
+#ifdef CONFIG_AMAZON_MINERVA_METRICS_LOG
+		log_counter_to_vitals_v2(ANDROID_LOG_INFO,
+				BT_GROUP_ID, BT_SCHEMA_ID, BT_DOMAIN, BT_PROGRAM,
+				BT_OPERATION, BT_KEY_PROBE, 1, "count",
+				"usb-buf-alloc-fail", VITALS_NORMAL, NULL, NULL);
+#elif defined(CONFIG_AMAZON_METRICS_LOG)
 		log_counter_to_vitals(ANDROID_LOG_INFO, BT_DOMAIN, BT_PROGRAM,
 				BT_OPERATION, BT_KEY_PROBE, 1, "count",
 				"usb-buf-alloc-fail", VITALS_NORMAL);
@@ -4657,7 +4691,12 @@ static int btmtk_usb_load_partial_rom_patch_7668(u32 patch_len, int offset)
 			status = usb_submit_urb(g_data->urb[LOAD_PATCH_URB], GFP_KERNEL);
 			if (status) {
 				BTUSB_ERR("%s: submit urb failed (%d)", __func__, status);
-#ifdef CONFIG_AMAZON_METRICS_LOG
+#ifdef CONFIG_AMAZON_MINERVA_METRICS_LOG
+				log_counter_to_vitals_v2(ANDROID_LOG_INFO,
+						BT_GROUP_ID, BT_SCHEMA_ID, BT_DOMAIN, BT_PROGRAM,
+						BT_OPERATION, BT_KEY_PROBE, 1, "count",
+						"urb-submit-fail", VITALS_NORMAL, NULL, NULL);
+#elif defined(CONFIG_AMAZON_METRICS_LOG)
 				log_counter_to_vitals(ANDROID_LOG_INFO, BT_DOMAIN, BT_PROGRAM,
 						BT_OPERATION, BT_KEY_PROBE, 1, "count",
 						"urb-submit-fail", VITALS_NORMAL);
@@ -4670,7 +4709,12 @@ static int btmtk_usb_load_partial_rom_patch_7668(u32 patch_len, int offset)
 					(&sent_to_mcu_done, msecs_to_jiffies(1000))) {
 				usb_kill_urb(g_data->urb[LOAD_PATCH_URB]);
 				BTUSB_ERR("%s: upload rom_patch timeout", __func__);
-#ifdef CONFIG_AMAZON_METRICS_LOG
+#ifdef CONFIG_AMAZON_MINERVA_METRICS_LOG
+				log_counter_to_vitals_v2(ANDROID_LOG_INFO,
+						BT_GROUP_ID, BT_SCHEMA_ID, BT_DOMAIN, BT_PROGRAM,
+						BT_OPERATION, BT_KEY_PROBE, 1, "count",
+						"upload-patch-timeout", VITALS_NORMAL, NULL, NULL);
+#elif defined(CONFIG_AMAZON_METRICS_LOG)
 				log_counter_to_vitals(ANDROID_LOG_INFO, BT_DOMAIN, BT_PROGRAM,
 						BT_OPERATION, BT_KEY_PROBE, 1, "count",
 						"upload-patch-timeout", VITALS_NORMAL);
@@ -5014,7 +5058,12 @@ static int btmtk_usb_load_rom_patch(void)
 
 	if (g_data == NULL) {
 		BTUSB_ERR("%s: g_data is NULL !", __func__);
-#ifdef CONFIG_AMAZON_METRICS_LOG
+#ifdef CONFIG_AMAZON_MINERVA_METRICS_LOG
+		log_counter_to_vitals_v2(ANDROID_LOG_INFO,
+				BT_GROUP_ID, BT_SCHEMA_ID, BT_DOMAIN, BT_PROGRAM,
+				BT_OPERATION, BT_KEY_PROBE, 1, "count",
+				"g-data-null", VITALS_NORMAL, NULL, NULL);
+#elif defined(CONFIG_AMAZON_METRICS_LOG)
 		log_counter_to_vitals(ANDROID_LOG_INFO, BT_DOMAIN, BT_PROGRAM,
 				BT_OPERATION, BT_KEY_PROBE, 1, "count",
 				"g-data-null", VITALS_NORMAL);
@@ -5170,10 +5219,15 @@ static int btmtk_usb_send_wmt_reset_cmd(void)
 
 	BTUSB_INFO("%s", __func__);
 	BTUSB_DBG_RAW(cmd, sizeof(cmd), "%s: Send CMD:", __func__);
-	ret = btmtk_usb_send_wmt_cmd(cmd, sizeof(cmd), event, sizeof(event), 20, 0, false);
+	ret = btmtk_usb_send_wmt_cmd(cmd, sizeof(cmd), event, sizeof(event), 20, 20, false);
 	if (ret < 0) {
 		BTUSB_ERR("%s: Check reset wmt result: NG", __func__);
-#ifdef CONFIG_AMAZON_METRICS_LOG
+#ifdef CONFIG_AMAZON_MINERVA_METRICS_LOG
+		log_counter_to_vitals_v2(ANDROID_LOG_INFO,
+				BT_GROUP_ID, BT_SCHEMA_ID, BT_DOMAIN, BT_PROGRAM,
+				BT_OPERATION, BT_KEY_PROBE, 1, "count",
+				"wmt-reset-fail", VITALS_NORMAL, NULL, NULL);
+#elif defined(CONFIG_AMAZON_METRICS_LOG)
 		log_counter_to_vitals(ANDROID_LOG_INFO, BT_DOMAIN, BT_PROGRAM,
 				BT_OPERATION, BT_KEY_PROBE, 1, "count",
 				"wmt-reset-fail", VITALS_NORMAL);
@@ -5193,7 +5247,12 @@ static int btmtk_usb_get_rom_patch_result(void)
 
 	if (g_data == NULL) {
 		BTUSB_ERR("%s: g_data == NULL!", __func__);
-#ifdef CONFIG_AMAZON_METRICS_LOG
+#ifdef CONFIG_AMAZON_MINERVA_METRICS_LOG
+		log_counter_to_vitals_v2(ANDROID_LOG_INFO,
+				BT_GROUP_ID, BT_SCHEMA_ID, BT_DOMAIN, BT_PROGRAM,
+				BT_OPERATION, BT_KEY_PROBE, 1, "count",
+				"g-data-null", VITALS_NORMAL, NULL, NULL);
+#elif defined(CONFIG_AMAZON_METRICS_LOG)
 		log_counter_to_vitals(ANDROID_LOG_INFO, BT_DOMAIN, BT_PROGRAM,
 				BT_OPERATION, BT_KEY_PROBE, 1, "count",
 				"g-data-null", VITALS_NORMAL);
@@ -5202,7 +5261,12 @@ static int btmtk_usb_get_rom_patch_result(void)
 	}
 	if (g_data->udev == NULL) {
 		BTUSB_ERR("%s: g_data->udev == NULL!", __func__);
-#ifdef CONFIG_AMAZON_METRICS_LOG
+#ifdef CONFIG_AMAZON_MINERVA_METRICS_LOG
+		log_counter_to_vitals_v2(ANDROID_LOG_INFO,
+				BT_GROUP_ID, BT_SCHEMA_ID, BT_DOMAIN, BT_PROGRAM,
+				BT_OPERATION, BT_KEY_PROBE, 1, "count",
+				"g-udev-null", VITALS_NORMAL, NULL, NULL);
+#elif defined(CONFIG_AMAZON_METRICS_LOG)
 		log_counter_to_vitals(ANDROID_LOG_INFO, BT_DOMAIN, BT_PROGRAM,
 				BT_OPERATION, BT_KEY_PROBE, 1, "count",
 				"g-udev-null", VITALS_NORMAL);
@@ -5211,7 +5275,12 @@ static int btmtk_usb_get_rom_patch_result(void)
 	}
 	if (g_data->io_buf == NULL) {
 		BTUSB_ERR("%s: g_data->io_buf == NULL!", __func__);
-#ifdef CONFIG_AMAZON_METRICS_LOG
+#ifdef CONFIG_AMAZON_MINERVA_METRICS_LOG
+		log_counter_to_vitals_v2(ANDROID_LOG_INFO,
+				BT_GROUP_ID, BT_SCHEMA_ID, BT_DOMAIN, BT_PROGRAM,
+				BT_OPERATION, BT_KEY_PROBE, 1, "count",
+				"io-buf-null", VITALS_NORMAL, NULL, NULL);
+#elif defined(CONFIG_AMAZON_METRICS_LOG)
 		log_counter_to_vitals(ANDROID_LOG_INFO, BT_DOMAIN, BT_PROGRAM,
 				BT_OPERATION, BT_KEY_PROBE, 1, "count",
 				"io-buf-null", VITALS_NORMAL);
@@ -5243,7 +5312,12 @@ static int btmtk_usb_get_rom_patch_result(void)
 		} else {
 			BTUSB_WARN("Get rom patch result: NG");
 			BTUSB_DBG_RAW(g_data->io_buf, ret, "%s: Get unknown event is:", __func__);
-#ifdef CONFIG_AMAZON_METRICS_LOG
+#ifdef CONFIG_AMAZON_MINERVA_METRICS_LOG
+			log_counter_to_vitals_v2(ANDROID_LOG_INFO,
+					BT_GROUP_ID, BT_SCHEMA_ID, BT_DOMAIN, BT_PROGRAM,
+					BT_OPERATION, BT_KEY_PROBE, 1, "count",
+					"patch-result-fail", VITALS_NORMAL, NULL, NULL);
+#elif defined(CONFIG_AMAZON_METRICS_LOG)
 			log_counter_to_vitals(ANDROID_LOG_INFO, BT_DOMAIN, BT_PROGRAM,
 					BT_OPERATION, BT_KEY_PROBE, 1, "count",
 					"patch-result-fail", VITALS_NORMAL);
@@ -7807,12 +7881,18 @@ static int btmtk_usb_probe(struct usb_interface *intf, const struct usb_device_i
 		USB_MUTEX_UNLOCK();
 		atomic_set(&doing_reset, BTMTK_RESET_DONE);
 		BTUSB_ERR("btmtk_usb_probe end Error 2");
-#ifdef CONFIG_AMAZON_METRICS_LOG
+#ifdef CONFIG_AMAZON_MINERVA_METRICS_LOG
+		log_counter_to_vitals_v2(ANDROID_LOG_INFO,
+				BT_GROUP_ID, BT_SCHEMA_ID, BT_DOMAIN, BT_PROGRAM,
+				BT_OPERATION, BT_KEY_PROBE, 1, "count",
+				"g-data-null", VITALS_NORMAL, NULL, NULL);
+#elif defined(CONFIG_AMAZON_METRICS_LOG)
 		log_counter_to_vitals(ANDROID_LOG_INFO, BT_DOMAIN, BT_PROGRAM,
 				BT_OPERATION, BT_KEY_PROBE, 1, "count",
 				"g-data-null", VITALS_NORMAL);
 #endif
-		return -ENOMEM;
+		err = -ENOMEM;
+		goto reset;
 	}
 
 	if (timer_pending(&g_data->chip_rst_disc_timer)) {
@@ -7822,12 +7902,18 @@ static int btmtk_usb_probe(struct usb_interface *intf, const struct usb_device_i
 
 	if (btmtk_usb_urb_alloc() < 0) {
 		BTUSB_INFO("%s: alloc urb failed\n", __func__);
-#ifdef CONFIG_AMAZON_METRICS_LOG
+#ifdef CONFIG_AMAZON_MINERVA_METRICS_LOG
+		log_counter_to_vitals_v2(ANDROID_LOG_INFO,
+				BT_GROUP_ID, BT_SCHEMA_ID, BT_DOMAIN, BT_PROGRAM,
+				BT_OPERATION, BT_KEY_PROBE, 1, "count",
+				"urb-alloc-fail", VITALS_NORMAL, NULL, NULL);
+#elif defined(CONFIG_AMAZON_METRICS_LOG)
 		log_counter_to_vitals(ANDROID_LOG_INFO, BT_DOMAIN, BT_PROGRAM,
 				BT_OPERATION, BT_KEY_PROBE, 1, "count",
 				"urb-alloc-fail", VITALS_NORMAL);
 #endif
-		return -ENOMEM;
+		err = -ENOMEM;
+		goto reset;
 	}
 
 	btmtk_usb_chip_reset_func_deinit();
@@ -7858,12 +7944,18 @@ static int btmtk_usb_probe(struct usb_interface *intf, const struct usb_device_i
 		btmtk_usb_stop_wait_dump_complete_thread();
 
 		BTUSB_ERR("btmtk_usb_probe end Error 2");
-#ifdef CONFIG_AMAZON_METRICS_LOG
+#ifdef CONFIG_AMAZON_MINERVA_METRICS_LOG
+		log_counter_to_vitals_v2(ANDROID_LOG_INFO,
+				BT_GROUP_ID, BT_SCHEMA_ID, BT_DOMAIN, BT_PROGRAM,
+				BT_OPERATION, BT_KEY_PROBE, 1, "count",
+				"g-data-null-ex", VITALS_NORMAL, NULL, NULL);
+#elif defined(CONFIG_AMAZON_METRICS_LOG)
 		log_counter_to_vitals(ANDROID_LOG_INFO, BT_DOMAIN, BT_PROGRAM,
 				BT_OPERATION, BT_KEY_PROBE, 1, "count",
 				"g-data-null-ex", VITALS_NORMAL);
 #endif
-		return -ENOMEM;
+		err = -ENOMEM;
+		goto reset;
 	}
 
 	if (timer_pending(&chip_reset_timer)) {
@@ -7902,12 +7994,18 @@ static int btmtk_usb_probe(struct usb_interface *intf, const struct usb_device_i
 		btmtk_usb_stop_wait_dump_complete_thread();
 
 		BTUSB_ERR("btmtk_usb_probe end Error 3");
-#ifdef CONFIG_AMAZON_METRICS_LOG
+#ifdef CONFIG_AMAZON_MINERVA_METRICS_LOG
+		log_counter_to_vitals_v2(ANDROID_LOG_INFO,
+				BT_GROUP_ID, BT_SCHEMA_ID, BT_DOMAIN, BT_PROGRAM,
+				BT_OPERATION, BT_KEY_PROBE, 1, "count",
+				"usb-ep-null", VITALS_NORMAL, NULL, NULL);
+#elif defined(CONFIG_AMAZON_METRICS_LOG)
 		log_counter_to_vitals(ANDROID_LOG_INFO, BT_DOMAIN, BT_PROGRAM,
 				BT_OPERATION, BT_KEY_PROBE, 1, "count",
 				"usb-ep-null", VITALS_NORMAL);
 #endif
-		return -ENODEV;
+		err = -ENODEV;
+		goto reset;
 	}
 
 	g_data->udev = interface_to_usbdev(intf);
@@ -7957,7 +8055,7 @@ static int btmtk_usb_probe(struct usb_interface *intf, const struct usb_device_i
 		btmtk_usb_stop_wait_dump_complete_thread();
 
 		BTUSB_ERR("btmtk_usb_probe end Error 4");
-		return err;
+		goto reset;
 	}
 
 	/* Interface numbers are hardcoded in the specification */
@@ -7973,12 +8071,17 @@ static int btmtk_usb_probe(struct usb_interface *intf, const struct usb_device_i
 			btmtk_usb_stop_wait_dump_complete_thread();
 
 			BTUSB_ERR("btmtk_usb_probe end Error 5");
-#ifdef CONFIG_AMAZON_METRICS_LOG
+#ifdef CONFIG_AMAZON_MINERVA_METRICS_LOG
+			log_counter_to_vitals_v2(ANDROID_LOG_INFO,
+					BT_GROUP_ID, BT_SCHEMA_ID, BT_DOMAIN, BT_PROGRAM,
+					BT_OPERATION, BT_KEY_PROBE, 1, "count",
+					"isoc-bind-error", VITALS_NORMAL, NULL, NULL);
+#elif defined(CONFIG_AMAZON_METRICS_LOG)
 			log_counter_to_vitals(ANDROID_LOG_INFO, BT_DOMAIN, BT_PROGRAM,
 					BT_OPERATION, BT_KEY_PROBE, 1, "count",
 					"isoc-bind-error", VITALS_NORMAL);
 #endif
-			return err;
+			goto reset;
 		}
 	}
 
@@ -8026,6 +8129,10 @@ static int btmtk_usb_probe(struct usb_interface *intf, const struct usb_device_i
 
 	BTUSB_INFO("%s: end", __func__);
 	return 0;
+
+reset:
+	btmtk_usb_start_reset_dongle_progress();
+	return err;
 }
 
 static int btmtk_usb_L0_probe(struct usb_interface *intf, const struct usb_device_id *id)
@@ -8086,7 +8193,12 @@ static void btmtk_usb_disconnect(struct usb_interface *intf)
 					__func__, state);
 			btmtk_usb_set_state(BTMTK_USB_STATE_DISCONNECT);
 		}
-#ifdef CONFIG_AMAZON_METRICS_LOG
+#ifdef CONFIG_AMAZON_MINERVA_METRICS_LOG
+		log_counter_to_vitals_v2(ANDROID_LOG_INFO,
+				BT_GROUP_ID, BT_SCHEMA_ID, BT_DOMAIN, BT_PROGRAM,
+				BT_OPERATION, BT_KEY_BUS_DISC, 1, "count",
+				"in-suspend", VITALS_NORMAL, NULL, NULL);
+#elif defined(CONFIG_AMAZON_METRICS_LOG)
 		log_counter_to_vitals(ANDROID_LOG_INFO, BT_DOMAIN, BT_PROGRAM,
 				BT_OPERATION, BT_KEY_BUS_DISC, 1, "count",
 				"in-suspend", VITALS_NORMAL);
@@ -8096,7 +8208,12 @@ static void btmtk_usb_disconnect(struct usb_interface *intf)
 		BTUSB_WARN("%s: state=%d disc happens when driver is in resume, should stay in resume state later!",
 				__func__, state);
 		btmtk_usb_set_state(BTMTK_USB_STATE_RESUME_DISCONNECT);
-#ifdef CONFIG_AMAZON_METRICS_LOG
+#ifdef CONFIG_AMAZON_MINERVA_METRICS_LOG
+		log_counter_to_vitals_v2(ANDROID_LOG_INFO,
+				BT_GROUP_ID, BT_SCHEMA_ID, BT_DOMAIN, BT_PROGRAM,
+				BT_OPERATION, BT_KEY_BUS_DISC, 1, "count",
+				"in-resume", VITALS_NORMAL, NULL, NULL);
+#elif defined(CONFIG_AMAZON_METRICS_LOG)
 		log_counter_to_vitals(ANDROID_LOG_INFO, BT_DOMAIN, BT_PROGRAM,
 				BT_OPERATION, BT_KEY_BUS_DISC, 1, "count",
 				"in-resume", VITALS_NORMAL);
@@ -8104,7 +8221,12 @@ static void btmtk_usb_disconnect(struct usb_interface *intf)
 
 	} else {
 		btmtk_usb_set_state(BTMTK_USB_STATE_DISCONNECT);
-#ifdef CONFIG_AMAZON_METRICS_LOG
+#ifdef CONFIG_AMAZON_MINERVA_METRICS_LOG
+		log_counter_to_vitals_v2(ANDROID_LOG_INFO,
+				BT_GROUP_ID, BT_SCHEMA_ID, BT_DOMAIN, BT_PROGRAM,
+				BT_OPERATION, BT_KEY_BUS_DISC, 1, "count",
+				"in-other-state", VITALS_NORMAL, NULL, NULL);
+#elif defined(CONFIG_AMAZON_METRICS_LOG)
 		log_counter_to_vitals(ANDROID_LOG_INFO, BT_DOMAIN, BT_PROGRAM,
 				BT_OPERATION, BT_KEY_BUS_DISC, 1, "count",
 				"in-other-state", VITALS_NORMAL);
@@ -8229,7 +8351,12 @@ static int btmtk_usb_resume(struct usb_interface *intf)
 			&& g_data->is_mt7668_dongle_state == BTMTK_USB_7668_DONGLE_STATE_ERROR) {
 		BTUSB_INFO("%s: In BTMTK_USB_7668_DONGLE_STATE_ERROR(Could suspend caused), do assert", __func__);
 		btmtk_usb_send_assert_cmd();
-#ifdef CONFIG_AMAZON_METRICS_LOG
+#ifdef CONFIG_AMAZON_MINERVA_METRICS_LOG
+		log_counter_to_vitals_v2(ANDROID_LOG_INFO,
+				BT_GROUP_ID, BT_SCHEMA_ID, BT_DOMAIN, BT_PROGRAM,
+				BT_OPERATION, BT_KEY_WOBLE, 1, "count",
+				"dongle-state-error", VITALS_NORMAL, NULL, NULL);
+#elif defined(CONFIG_AMAZON_METRICS_LOG)
 		log_counter_to_vitals(ANDROID_LOG_INFO, BT_DOMAIN, BT_PROGRAM,
 				BT_OPERATION, BT_KEY_WOBLE, 1, "count",
 				"dongle-state-error", VITALS_NORMAL);
@@ -8258,7 +8385,12 @@ static int btmtk_usb_resume(struct usb_interface *intf)
 		btmtk_usb_woble_wake_lock(g_data);
 		BTUSB_ERR("%s: do assert", __func__);
 		btmtk_usb_send_assert_cmd();
-#ifdef CONFIG_AMAZON_METRICS_LOG
+#ifdef CONFIG_AMAZON_MINERVA_METRICS_LOG
+		log_counter_to_vitals_v2(ANDROID_LOG_INFO,
+				BT_GROUP_ID, BT_SCHEMA_ID, BT_DOMAIN, BT_PROGRAM,
+				BT_OPERATION, BT_KEY_WOBLE, 1, "count",
+				"leave-woble-fail", VITALS_NORMAL, NULL, NULL);
+#elif defined(CONFIG_AMAZON_METRICS_LOG)
 		log_counter_to_vitals(ANDROID_LOG_INFO, BT_DOMAIN, BT_PROGRAM,
 				BT_OPERATION, BT_KEY_WOBLE, 1, "count",
 				"leave-woble-fail", VITALS_NORMAL);

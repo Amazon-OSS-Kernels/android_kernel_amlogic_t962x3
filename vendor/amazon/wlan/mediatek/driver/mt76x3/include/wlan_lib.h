@@ -1661,6 +1661,10 @@ uint32_t wlanCfgSetCb(IN struct ADAPTER *prAdapter, const int8_t *pucKey,
 uint32_t wlanCfgParse(IN struct ADAPTER *prAdapter, uint8_t *pucConfigBuf,
 		      uint32_t u4ConfigBufLen, u_int8_t isFwConfig);
 void wlanFeatureToFw(IN struct ADAPTER *prAdapter);
+#if CFG_SUPPORT_SEND_ONLY_ONE_CFG
+uint32_t wlanFeatureToFwOnlyOneCfg(IN struct ADAPTER *prAdapter,
+		     const int8_t *pucKey, int8_t *pucValue);
+#endif
 #endif
 
 void wlanLoadDefaultCustomerSetting(IN struct ADAPTER *prAdapter);

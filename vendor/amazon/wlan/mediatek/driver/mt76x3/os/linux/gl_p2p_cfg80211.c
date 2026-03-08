@@ -3498,7 +3498,7 @@ void mtk_p2p_cfg80211_mgmt_frame_register(IN struct wiphy *wiphy,
 			break;
 		default:
 			DBGLOG(P2P, ERROR,
-				"Ask frog to add code for mgmt:%x\n",
+				"unsupported frame type:%x\n",
 				frame_type);
 			break;
 		}
