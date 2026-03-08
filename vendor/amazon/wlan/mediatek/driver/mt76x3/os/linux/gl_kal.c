@@ -144,12 +144,6 @@ u_int8_t g_fgIsOid = TRUE;
 #ifdef CONFIG_PM_SLEEP
 static int pm_resume_done = 0;
 #endif
-
-#ifdef CONFIG_IDME
-static u_int8_t g_fgIsIdmeMacAddrExist = FALSE;
-static uint8_t rIdmeMacAddr[PARAM_MAC_ADDR_LEN];
-#endif
-
 /*******************************************************************************
  *                                 M A C R O S
  *******************************************************************************
@@ -1391,7 +1385,7 @@ kalIndicateStatusAndComplete(IN struct GLUE_INFO
 			CFG80211_BSS_FTYPE_PRESP,
 			arBssid,
 			0, /* TSF */
-			prBssDesc->u2CapInfo,
+			WLAN_CAPABILITY_ESS,
 			prBssDesc->u2BeaconInterval, /* beacon interval */
 			prBssDesc->aucIEBuf, /* IE */
 			prBssDesc->u2IELength, /* IE Length */
@@ -1403,7 +1397,7 @@ kalIndicateStatusAndComplete(IN struct GLUE_INFO
 			prChannel,
 			arBssid,
 			0, /* TSF */
-			prBssDesc->u2CapInfo,
+			WLAN_CAPABILITY_ESS,
 			prBssDesc->u2BeaconInterval, /* beacon interval */
 			prBssDesc->aucIEBuf, /* IE */
 			prBssDesc->u2IELength, /* IE Length */
@@ -1721,8 +1715,7 @@ kalIndicateStatusAndComplete(IN struct GLUE_INFO
 					NULL,
 					0,
 					prConnSettings->bss,
-					0,
-					FALSE);
+					0);
 
 #else
 	#if (KERNEL_VERSION(4, 4, 41) <= CFG80211_VERSION_CODE)
@@ -1796,18 +1789,8 @@ kalIndicateStatusAndComplete(IN struct GLUE_INFO
 		if (prConnSettings->bss) {
 #if CFG_WDEV_LOCK_THREAD_SUPPORT
 			uint8_t *pFrameBuf = NULL;
-			uint8_t fgIsInterruptContext = FALSE;
 
-			if (in_interrupt()) {
-				pFrameBuf = kalMemAlloc(u4BufLen, PHY_MEM_TYPE);
-				fgIsInterruptContext = TRUE;
-			} else {
-				pFrameBuf = kalMemAlloc(u4BufLen, VIR_MEM_TYPE);
-				fgIsInterruptContext = FALSE;
-			}
-
-			if (!pFrameBuf)
-				DBGLOG(INIT, ERROR, "Alloc buffer for frame failed\n");
+			pFrameBuf = kalMemAlloc(u4BufLen, VIR_MEM_TYPE);
 
 			if (pFrameBuf) {
 				kalMemCopy((void *)pFrameBuf,
@@ -1820,8 +1803,7 @@ kalIndicateStatusAndComplete(IN struct GLUE_INFO
 						pFrameBuf,
 						u4BufLen,
 						prConnSettings->bss,
-						0,
-						fgIsInterruptContext);
+						0);
 			}
 			else {
 				/* 20210505 frog:
@@ -1834,8 +1816,7 @@ kalIndicateStatusAndComplete(IN struct GLUE_INFO
 						NULL,
 						0,
 						prConnSettings->bss,
-						0,
-						fgIsInterruptContext);
+						0);
 			}
 #else
 #if (KERNEL_VERSION(5, 1, 0) <= CFG80211_VERSION_CODE)
@@ -4301,12 +4282,6 @@ u_int8_t kalRetrieveNetworkAddress(IN struct GLUE_INFO *prGlueInfo,
 	if (prMacAddr && 0 == idme_get_mac_addr((unsigned char *)prMacAddr,
 		(sizeof(uint8_t) * PARAM_MAC_ADDR_LEN))) {
 		DBGLOG(INIT, INFO, "use IDME mac addr\n");
-		g_fgIsIdmeMacAddrExist = TRUE;
-		COPY_MAC_ADDR(rIdmeMacAddr, prMacAddr);
-		return TRUE;
-	} else if (prMacAddr && g_fgIsIdmeMacAddrExist) {
-		COPY_MAC_ADDR(prMacAddr, rIdmeMacAddr);
-		DBGLOG(INIT, STATE, "re-use pre-stored IDME mac addr\n");
 		return TRUE;
 	}
 #endif
@@ -5833,8 +5808,7 @@ void kalWDevLockThread(IN struct GLUE_INFO* prGlueInfo,
 	IN uint8_t *pFrameBuf,
 	IN size_t frameLen,
 	IN struct cfg80211_bss *pBss,
-	IN int32_t uapsd_queues,
-	IN uint8_t fgIsInterruptContext)
+	IN int32_t uapsd_queues)
 {
 	struct PARAM_WDEV_LOCK_THREAD* pParamWDevLock = NULL;
 	GLUE_SPIN_LOCK_DECLARATION();
@@ -5843,20 +5817,9 @@ void kalWDevLockThread(IN struct GLUE_INFO* prGlueInfo,
 
 	DBGLOG(REQ, INFO, "kalWDevLockThread\n");
 
-	if (in_interrupt() && fgIsInterruptContext) {
-		DBGLOG(REQ, STATE,
-			"pParamWDevLock is allocated as PHY_MEM_TYPE in intr context\n");
-		pParamWDevLock =
-			(struct PARAM_WDEV_LOCK_THREAD*)kalMemAlloc(
-					sizeof(struct PARAM_WDEV_LOCK_THREAD),
-					PHY_MEM_TYPE);
-	} else {
-		pParamWDevLock =
-			(struct PARAM_WDEV_LOCK_THREAD*)kalMemAlloc(
-					sizeof(struct PARAM_WDEV_LOCK_THREAD),
-					VIR_MEM_TYPE);
-	}
-
+	pParamWDevLock = (struct PARAM_WDEV_LOCK_THREAD*) kalMemAlloc(
+							sizeof(struct PARAM_WDEV_LOCK_THREAD),
+							VIR_MEM_TYPE);
 	DBGLOG(REQ, TRACE, "Alloc pParamWDevLock 0x%x\n", pParamWDevLock);
 
 	if (pParamWDevLock == NULL) {
@@ -5868,7 +5831,6 @@ void kalWDevLockThread(IN struct GLUE_INFO* prGlueInfo,
 	pParamWDevLock->fn = fn;
 	pParamWDevLock->pFrameBuf = pFrameBuf;
 	pParamWDevLock->frameLen = frameLen;
-	pParamWDevLock->fgIsInterruptContext = fgIsInterruptContext;
 	if (pBss) {
 		cfg80211_ref_bss(priv_to_wiphy(prGlueInfo),
 						pBss);
@@ -6320,13 +6282,11 @@ static ssize_t kalMetWriteProcfs(struct file *file,
 	int u8MetProfEnable;
 
 	IN struct GLUE_INFO *prGlueInfo;
+	ssize_t result;
 
 	u4CopySize = (count < (sizeof(acBuf) - 1)) ? count :
 		     (sizeof(acBuf) - 1);
-	if (copy_from_user(acBuf, buffer, u4CopySize)) {
-		DBGLOG(INIT, ERROR, "error of copy from user\n");
-		return -EFAULT;
-	}
+	result = copy_from_user(acBuf, buffer, u4CopySize);
 	acBuf[u4CopySize] = '\0';
 
 	if (sscanf(acBuf, " %d %d", &u8MetProfEnable,
@@ -6348,15 +6308,13 @@ static ssize_t kalMetCtrlWriteProcfs(struct file *file,
 	char acBuf[128 + 1];	/* + 1 for "\0" */
 	uint32_t u4CopySize;
 	int u8MetProfEnable;
+	ssize_t result;
 
 	IN struct GLUE_INFO *prGlueInfo;
 
 	u4CopySize = (count < (sizeof(acBuf) - 1)) ? count :
 		     (sizeof(acBuf) - 1);
-	if (copy_from_user(acBuf, buffer, u4CopySize)) {
-		DBGLOG(INIT, ERROR, "error of copy from user\n");
-		return -EFAULT;
-	}
+	result = copy_from_user(acBuf, buffer, u4CopySize);
 	acBuf[u4CopySize] = '\0';
 
 	if (sscanf(acBuf, " %d", &u8MetProfEnable) == 1)
@@ -6375,15 +6333,13 @@ static ssize_t kalMetPortWriteProcfs(struct file *file,
 	char acBuf[128 + 1];	/* + 1 for "\0" */
 	uint32_t u4CopySize;
 	int u16MetUdpPort;
+	ssize_t result;
 
 	IN struct GLUE_INFO *prGlueInfo;
 
 	u4CopySize = (count < (sizeof(acBuf) - 1)) ? count :
 		     (sizeof(acBuf) - 1);
-	if (copy_from_user(acBuf, buffer, u4CopySize)) {
-		DBGLOG(INIT, ERROR, "error of copy from user\n");
-		return -EFAULT;
-	}
+	result = copy_from_user(acBuf, buffer, u4CopySize);
 	acBuf[u4CopySize] = '\0';
 
 	if (sscanf(acBuf, " %d", &u16MetUdpPort) == 1)
@@ -6567,7 +6523,6 @@ void kalWowInit(IN struct GLUE_INFO *prGlueInfo)
 {
 	kalMemZero(&prGlueInfo->prAdapter->rWowCtrl.stWowPort,
 		   sizeof(struct WOW_PORT));
-	wlanCfgSetWowPorts(prGlueInfo->prAdapter);
 	prGlueInfo->prAdapter->rWowCtrl.ucReason = INVALID_WOW_WAKE_UP_REASON;
 
 	prGlueInfo->prAdapter->mdns_offload_enable = FALSE;
@@ -6628,23 +6583,20 @@ void kalWowProcess(IN struct GLUE_INFO *prGlueInfo,
 		kalSendAddMdnsCacheToFw(prGlueInfo);
 	}
 
-	/* add mdns wow patterns */
-	if (enable && prGlueInfo->prAdapter->mdns_wow_patterns_no) {
-
-		rCmdWowlanParam.mdns_wow_patterns_no =
-			     prGlueInfo->prAdapter->mdns_wow_patterns_no;
-
-		kalMemCopy(rCmdWowlanParam.mdns_wow_patterns,
-			       prGlueInfo->prAdapter->mdns_wow_patterns,
-				   sizeof(rCmdWowlanParam.mdns_wow_patterns)
-				  );
-		DBGLOG(PF, STATE, "mDNS wow enabled %d patterns\n",
-				          rCmdWowlanParam.mdns_wow_patterns_no
-		                  );
+	/* add mDNS wow */
+	if (enable && prGlueInfo->prAdapter->mdns_wow_pattern_len > 0) {
+		rCmdWowlanParam.mdns_wow_pattern_len =
+			prGlueInfo->prAdapter->mdns_wow_pattern_len;
+		kalStrnCpy(rCmdWowlanParam.mdns_wow_pattern,
+			   prGlueInfo->prAdapter->mdns_wow_pattern,
+			   prGlueInfo->prAdapter->mdns_wow_pattern_len);
+		DBGLOG(PF, INFO, "mDNS wow pattern:%s len=%d\n",
+			rCmdWowlanParam.mdns_wow_pattern,
+			rCmdWowlanParam.mdns_wow_pattern_len);
 	}
 	else {
-		rCmdWowlanParam.mdns_wow_patterns_no = 0;
-		DBGLOG(PF, STATE, "mDNS wow disabled\n");
+		rCmdWowlanParam.mdns_wow_pattern_len = 0;
+		DBGLOG(PF, INFO, "mDNS wow disabled.\n");
 	}
 
 	DBGLOG(PF, INFO,
@@ -8886,9 +8838,11 @@ unsigned long kal_kallsyms_lookup_name(const char *name)
 {
 	unsigned long ret = 0;
 
-	DBGLOG(INIT, INFO, "%s(%s)\r\n", __func__, name);
+#if 1 // frog  MTK TODO
 	ret = (unsigned long)__symbol_get(name);
-
+#else
+	ret = kallsyms_lookup_name(name);
+#endif
 	if (ret) {
 #ifdef CONFIG_ARM
 #ifdef CONFIG_THUMB2_KERNEL
@@ -8898,12 +8852,6 @@ unsigned long kal_kallsyms_lookup_name(const char *name)
 #endif
 	}
 	return ret;
-}
-
-void kal_kallsyms_put(const char *name)
-{
-	DBGLOG(INIT, INFO, "%s(%s)\r\n", __func__, name);
-	__symbol_put(name);
 }
 
 #ifdef CONFIG_PM_SLEEP

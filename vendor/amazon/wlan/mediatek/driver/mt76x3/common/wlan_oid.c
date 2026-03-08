@@ -2680,14 +2680,6 @@ wlanoidSetAddKey(IN struct ADAPTER *prAdapter, IN void *pvSetBuffer,
 						.rAisSpecificBssInfo;
 					prAisSpecBssInfo->fgBipKeyInstalled =
 						TRUE;
-
-#if CFG_FTV_76x3_PMF_CERT_FIX
-					DBGLOG(RSN, INFO,
-						"Change BIP BC keyId from %d to 3\n",
-						prCmdKey->ucKeyId);
-					/* Set IGTK WTBL keyid 3 for WTBL to correcly search GTK */
-					prCmdKey->ucKeyId = 3;
-#endif
 				}
 			}
 #endif
@@ -2751,7 +2743,6 @@ wlanoidSetAddKey(IN struct ADAPTER *prAdapter, IN void *pvSetBuffer,
 #if CFG_SUPPORT_802_11W
 		/* AP PMF */
 		if (prCmdKey->ucAlgorithmId == CIPHER_SUITE_BIP) {
-			prCmdKey->ucKeyId = KEY_ID_BIP;
 			if (prCmdKey->ucIsAuthenticator) {
 				DBGLOG(RSN, INFO,
 				"Authenticator BIP bssid:%d\n",
@@ -2765,22 +2756,13 @@ wlanoidSetAddKey(IN struct ADAPTER *prAdapter, IN void *pvSetBuffer,
 						prCmdKey->ucAlgorithmId,
 						prCmdKey->ucKeyId);
 			} else {
-				if (prBssInfo->prStaRecOfAP) {
-					prCmdKey->ucWlanIndex =
-					    secPrivacySeekForBcEntry(prAdapter,
-						    prBssInfo->ucBssIndex,
-						    prBssInfo->prStaRecOfAP
-							->aucMacAddr,
-						    prBssInfo->prStaRecOfAP
-							->ucIndex,
-						    prCmdKey->ucAlgorithmId,
-						    prCmdKey->ucKeyId);
-
-#if CFG_FTV_76x3_PMF_CERT_FIX
-					kalMemCopy(prCmdKey->aucPeerAddr,
-						prBssInfo->prStaRecOfAP->aucMacAddr, MAC_ADDR_LEN);
-#endif
-				}
+				prCmdKey->ucWlanIndex =
+				    secPrivacySeekForBcEntry(prAdapter,
+					    prBssInfo->ucBssIndex,
+					    prBssInfo->prStaRecOfAP->aucMacAddr,
+					    prBssInfo->prStaRecOfAP->ucIndex,
+					    prCmdKey->ucAlgorithmId,
+					    prCmdKey->ucKeyId);
 			}
 
 			DBGLOG(RSN, INFO, "BIP BC wtbl index:%d\n",
@@ -7305,12 +7287,6 @@ wlanoidSetSwCtrlWrite(IN struct ADAPTER *prAdapter,
 		ucChannelWidth = (uint8_t)((u4Data & BITS(4, 7)) >> 4);
 		ucBssIndex = (uint8_t) u2SubId;
 
-		if (!IS_BSS_INDEX_VALID(ucBssIndex)) {
-			DBGLOG(RLM, ERROR,
-				"Invalid bssidx:%d\n", ucBssIndex);
-			break;
-		}
-
 		if ((u2SubId & BITS(8, 15)) != 0) { /* Debug OP change
 						     * parameters
 						     */
@@ -7859,14 +7835,8 @@ wlanoidSetKeyCfg(IN struct ADAPTER *prAdapter,
 			   prKeyCfgInfo->aucValue, 0);
 
 	wlanInitFeatureOption(prAdapter);
-
 #if CFG_SUPPORT_EASY_DEBUG
-#if CFG_SUPPORT_SEND_ONLY_ONE_CFG
-	wlanFeatureToFwOnlyOneCfg(prAdapter, prKeyCfgInfo->aucKey,
-			   prKeyCfgInfo->aucValue);
-#else
 	wlanFeatureToFw(prAdapter);
-#endif
 #endif
 
 	return rWlanStatus;
@@ -11256,14 +11226,11 @@ wlanoidSetWSCAssocInfo(IN struct ADAPTER *prAdapter,
 	DEBUGFUNC("wlanoidSetWSCAssocInfo");
 	DBGLOG(REQ, LOUD, "\r\n");
 
+	if (u4SetBufferLen == 0)
+		return WLAN_STATUS_INVALID_LENGTH;
+
 	*pu4SetInfoLen = u4SetBufferLen;
 
-	if (u4SetBufferLen == 0 ||
-		u4SetBufferLen > sizeof(prAdapter->prGlueInfo->aucWSCAssocInfoIE)) {
-		DBGLOG(REQ, WARN, "invalid u4SetBufferLen\n");
-		*pu4SetInfoLen = sizeof(prAdapter->prGlueInfo->aucWSCAssocInfoIE);
-		return WLAN_STATUS_INVALID_LENGTH;
-	}
 	kalMemCopy(prAdapter->prGlueInfo->aucWSCAssocInfoIE,
 		   pvSetBuffer, u4SetBufferLen);
 	prAdapter->prGlueInfo->u2WSCAssocInfoIELen =

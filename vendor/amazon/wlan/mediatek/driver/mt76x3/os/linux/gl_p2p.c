@@ -852,7 +852,7 @@ u_int8_t p2pNetRegister(struct GLUE_INFO *prGlueInfo,
 
 	/* register for net device */
 	if (register_netdev(prGlueInfo->prP2PInfo[0]->prDevHandler) < 0) {
-		DBGLOG(INIT, WARN, "unable to register netdevice for p2p0\n");
+		DBGLOG(INIT, WARN, "unable to register netdevice for p2p\n");
 		/* free dev in glUnregisterP2P() */
 		/* free_netdev(prGlueInfo->prP2PInfo[0]->prDevHandler); */
 		ret = FALSE;
@@ -860,9 +860,6 @@ u_int8_t p2pNetRegister(struct GLUE_INFO *prGlueInfo,
 		prGlueInfo->prAdapter->rP2PNetRegState =
 			ENUM_NET_REG_STATE_REGISTERED;
 		gPrP2pDev[0] = prGlueInfo->prP2PInfo[0]->prDevHandler;
-#if CFG_RESET_DUE_TO_REG_NETDEV_FAIL
-		prGlueInfo->prP2PInfo[0]->fgIsNetDevRegistered = TRUE;
-#endif
 		ret = TRUE;
 	}
 
@@ -877,24 +874,16 @@ u_int8_t p2pNetRegister(struct GLUE_INFO *prGlueInfo,
 			prGlueInfo->prP2PInfo[1]->prDevHandler) < 0) {
 
 			DBGLOG(INIT, WARN,
-				"unable to register netdevice for p2p1\n");
+				"unable to register netdevice for p2p\n");
 
-			/* free dev in glUnregisterP2P() */
-			/* free_netdev(prGlueInfo->prP2PInfo[1]->prDevHandler); */
+			free_netdev(prGlueInfo->prP2PInfo[1]->prDevHandler);
 
 			ret = FALSE;
 		} else {
 			prGlueInfo->prAdapter->rP2PNetRegState =
 				ENUM_NET_REG_STATE_REGISTERED;
 			gPrP2pDev[1] = prGlueInfo->prP2PInfo[1]->prDevHandler;
-#if CFG_RESET_DUE_TO_REG_NETDEV_FAIL
-			DBGLOG(P2P, STATE, "P2P 2nd NetDev registered\n");
-			prGlueInfo->prP2PInfo[1]->fgIsNetDevRegistered = TRUE;
-			if (ret == TRUE)
-				ret = TRUE;
-#else
 			ret = TRUE;
-#endif
 		}
 
 
@@ -903,19 +892,6 @@ u_int8_t p2pNetRegister(struct GLUE_INFO *prGlueInfo,
 	if (fgRollbackRtnlLock)
 		rtnl_lock();
 
-#if CFG_RESET_DUE_TO_REG_NETDEV_FAIL
-#if CFG_ENABLE_WIFI_DIRECT
-	if (ret == FALSE) {
-		if (prGlueInfo->prAdapter->fgIsP2PRegistered) {
-			DBGLOG(INIT, WARN, "p2pNetUnregister...\n");
-			p2pNetUnregister(prGlueInfo, FALSE);
-			DBGLOG(INIT, WARN, "p2pRemove...\n");
-			/*p2pRemove must before wlanAdapterStop */
-			p2pRemove(prGlueInfo);
-		}
-	}
-#endif
-#endif
 	return ret;
 }
 
@@ -1038,15 +1014,7 @@ u_int8_t p2pNetUnregister(struct GLUE_INFO *prGlueInfo,
 		}
 
 		DBGLOG(INIT, INFO, "unregister p2pdev[%d]\n", ucRoleIdx);
-
-#if CFG_RESET_DUE_TO_REG_NETDEV_FAIL
-		if (prP2PInfo->fgIsNetDevRegistered == TRUE) {
-			prP2PInfo->fgIsNetDevRegistered = FALSE;
-			unregister_netdev(prP2PInfo->prDevHandler);
-		}
-#else
 		unregister_netdev(prP2PInfo->prDevHandler);
-#endif
 
 		if (fgRollbackRtnlLock)
 			rtnl_lock();

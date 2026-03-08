@@ -311,8 +311,9 @@ static u_int8_t halDriverOwnCheckCR4(struct ADAPTER *prAdapter)
 			       LP_OWN_BACK_FAILED_LOG_SKIP_MS);
 			fgStatus = FALSE;
 #if CFG_CHIP_RESET_SUPPORT
+			glGetRstReason(RST_DRV_OWN_FAIL);
 			GL_RESET_TRIGGER(prAdapter,
-					 RST_FLAG_CHIP_RESET, RST_DRV_OWN_FAIL);
+					 RST_FLAG_CHIP_RESET);
 #endif
 			break;
 		}
@@ -359,7 +360,8 @@ static void halDriverOwnTimeout(struct ADAPTER *prAdapter,
 			halShowHostCsrInfo(prAdapter);
 #if CFG_CHIP_RESET_SUPPORT
 			/* Trigger RESET */
-			GL_RESET_TRIGGER(prAdapter, RST_FLAG_CHIP_RESET, RST_DRV_OWN_FAIL);
+			glGetRstReason(RST_DRV_OWN_FAIL);
+			GL_RESET_TRIGGER(prAdapter, RST_FLAG_CHIP_RESET);
 #endif
 		}
 		GET_CURRENT_SYSTIME(&prAdapter->rLastOwnFailedLogTime);
@@ -2214,7 +2216,7 @@ static void halHwRecoveryTimeout(unsigned long arg)
 	DBGLOG(HAL, ERROR, "SER timer Timeout\n");
 
 #if CFG_CHIP_RESET_SUPPORT
-	GL_RESET_TRIGGER(prAdapter, RST_FLAG_CHIP_RESET, RST_DRV_OWN_FAIL);
+	GL_RESET_TRIGGER(prAdapter, RST_FLAG_CHIP_RESET);
 #endif
 }
 

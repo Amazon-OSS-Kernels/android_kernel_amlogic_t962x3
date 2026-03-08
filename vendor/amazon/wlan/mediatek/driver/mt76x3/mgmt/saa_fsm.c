@@ -308,27 +308,6 @@ void saaSendAuthAssoc(IN struct ADAPTER *prAdapter,
 						prStaRec, STA_STATE_2);
 			}
 
-			/* Refine PHY type set based on updated Encrypt Status */
-			if (prStaRec->eStaType == STA_TYPE_LEGACY_AP) {
-				if (!
-					((prAdapter->rWifiVar.rConnSettings.eEncStatus ==
-						ENUM_ENCRYPTION3_ENABLED)
-					|| (prAdapter->rWifiVar.rConnSettings.eEncStatus ==
-						ENUM_ENCRYPTION3_KEY_ABSENT)
-					|| (prAdapter->rWifiVar.rConnSettings.eEncStatus ==
-						ENUM_ENCRYPTION_DISABLED)
-					|| (prAdapter->prGlueInfo->u2WSCAssocInfoIELen)
-#if CFG_SUPPORT_WAPI
-					|| (prAdapter->prGlueInfo->u2WapiAssocInfoIESz)
-#endif
-				)) {
-					DBGLOG(BSS, INFO,
-							"Ignore the HT Bit for TKIP as pairwise cipher configed!\n");
-					prStaRec->ucPhyTypeSet &=
-							~(PHY_TYPE_BIT_HT | PHY_TYPE_BIT_VHT);
-				}
-			}
-
 			rStatus =
 				assocSendReAssocReqFrame(prAdapter,
 				prStaRec);
@@ -1008,13 +987,6 @@ saaFsmRunEventTxDone(IN struct ADAPTER *prAdapter,
 
 	ASSERT(prStaRec);
 
-#if CFG_CHIP_RESET_SUPPORT
-	if (kalIsResetting()) {
-		DBGLOG(SAA, WARN, "Skip TxDone event due to chip is resetting\n");
-		return WLAN_STATUS_SUCCESS;
-	}
-#endif
-
 	if (rTxDoneStatus)
 		DBGLOG(SAA, INFO,
 		       "EVENT-TX DONE [status: %d][seq: %d]: Current Time = %d\n",
@@ -1226,7 +1198,7 @@ void saaFsmRunEventTxReqTimeOut(IN struct ADAPTER *prAdapter,
 	if (!prStaRec)
 		return;
 
-	DBGLOG(SAA, STATE, "EVENT-TIMER: TX REQ TIMEOUT, Current Time = %d\n",
+	DBGLOG(SAA, LOUD, "EVENT-TIMER: TX REQ TIMEOUT, Current Time = %d\n",
 	       kalGetTimeTick());
 
 	/* Trigger statistics log if Auth/Assoc Tx timeout */
@@ -1264,17 +1236,15 @@ void saaFsmRunEventRxRespTimeOut(IN struct ADAPTER *prAdapter,
 #if !CFG_SUPPORT_CFG80211_AUTH
 	enum ENUM_AA_STATE eNextState;
 #endif
-	DBGLOG(SAA, STATE, "EVENT-TIMER: RX RESP TIMEOUT, Current Time = %d\n",
+	DBGLOG(SAA, LOUD, "EVENT-TIMER: RX RESP TIMEOUT, Current Time = %d\n",
 	       kalGetTimeTick());
 
 	ASSERT(prStaRec);
 	if (!prStaRec)
 		return;
 #if CFG_SUPPORT_CFG80211_AUTH
-	if (prStaRec->ucStaState != STA_STATE_3) {
-		/* Retry the last sent frame if possible */
-		saaSendAuthAssoc(prAdapter, prStaRec);
-	}
+	/* Retry the last sent frame if possible */
+	saaSendAuthAssoc(prAdapter, prStaRec);
 #else
 	eNextState = prStaRec->eAuthAssocState;
 
@@ -1341,7 +1311,6 @@ void saaFsmRunEventRxAuth(IN struct ADAPTER *prAdapter,
 	uint8_t ucRoleIdx = 0;
 #if CFG_WDEV_LOCK_THREAD_SUPPORT
 	uint8_t* pFrameBuf = NULL;
-	uint8_t fgIsInterruptContext = FALSE;
 #endif
 #endif
 
@@ -1413,19 +1382,8 @@ void saaFsmRunEventRxAuth(IN struct ADAPTER *prAdapter,
 
 				ucRoleIdx = (uint8_t)prBssInfo->u4PrivateData;
 #if CFG_WDEV_LOCK_THREAD_SUPPORT
-				if (in_interrupt()) {
-					pFrameBuf = kalMemAlloc(prSwRfb->u2PacketLen, PHY_MEM_TYPE);
-					fgIsInterruptContext = TRUE;
-				} else {
-					pFrameBuf = kalMemAlloc(prSwRfb->u2PacketLen, VIR_MEM_TYPE);
-					fgIsInterruptContext = FALSE;
-				}
-
-				if (!pFrameBuf) {
-					DBGLOG(SAA, ERROR, "Alloc buffer for frame failed\n");
-					return;
-				}
-
+				pFrameBuf = kalMemAlloc(prSwRfb->u2PacketLen,
+										VIR_MEM_TYPE);
 				kalMemCopy((void *) pFrameBuf,
 							(void *) prAuthFrame,
 							prSwRfb->u2PacketLen);
@@ -1436,8 +1394,7 @@ void saaFsmRunEventRxAuth(IN struct ADAPTER *prAdapter,
 									pFrameBuf,
 									prSwRfb->u2PacketLen,
 									NULL,
-									0,
-									fgIsInterruptContext);
+									0);
 #else
 				cfg80211_rx_mlme_mgmt(
 				prGlueInfo->prP2PInfo[ucRoleIdx]
@@ -1456,19 +1413,8 @@ void saaFsmRunEventRxAuth(IN struct ADAPTER *prAdapter,
 					MAC2STR(prNetDev->dev_addr));
 			} else {
 #if CFG_WDEV_LOCK_THREAD_SUPPORT
-				if (in_interrupt()) {
-					pFrameBuf = kalMemAlloc(prSwRfb->u2PacketLen, PHY_MEM_TYPE);
-					fgIsInterruptContext = TRUE;
-				} else {
-					pFrameBuf = kalMemAlloc(prSwRfb->u2PacketLen, VIR_MEM_TYPE);
-					fgIsInterruptContext = FALSE;
-				}
-
-				if (!pFrameBuf) {
-					DBGLOG(SAA, ERROR, "Alloc buffer for frame failed\n");
-					return;
-				}
-
+				pFrameBuf = kalMemAlloc(prSwRfb->u2PacketLen,
+										VIR_MEM_TYPE);
 				kalMemCopy((void *) pFrameBuf,
 							(void *) prAuthFrame,
 							prSwRfb->u2PacketLen);
@@ -1478,8 +1424,7 @@ void saaFsmRunEventRxAuth(IN struct ADAPTER *prAdapter,
 									pFrameBuf,
 									prSwRfb->u2PacketLen,
 									NULL,
-									0,
-									fgIsInterruptContext);
+									0);
 #else
 				cfg80211_rx_mlme_mgmt(prGlueInfo->prDevHandler,
 					(const u8 *)prAuthFrame,
@@ -1877,7 +1822,6 @@ uint32_t saaFsmRunEventRxDeauth(IN struct ADAPTER *prAdapter,
 	struct CONNECTION_SETTINGS *prConnSettings = NULL;
 #if CFG_WDEV_LOCK_THREAD_SUPPORT
 	uint8_t* pFrameBuf = NULL;
-	uint8_t fgIsInterruptContext = FALSE;
 #endif
 #endif
 
@@ -1916,6 +1860,10 @@ uint32_t saaFsmRunEventRxDeauth(IN struct ADAPTER *prAdapter,
 			if (!IS_AP_STA(prStaRec))
 				break;
 
+			/* if state != CONNECTED, don't do disconnect again */
+			if (prAdapter->prGlueInfo->eParamMediaStateIndicated !=
+				PARAM_MEDIA_STATE_CONNECTED)
+				break;
 
 			prAisBssInfo = prAdapter->prAisBssInfo;
 
@@ -1975,19 +1923,8 @@ uint32_t saaFsmRunEventRxDeauth(IN struct ADAPTER *prAdapter,
 						prSwRfb->u2PacketLen);
 
 #if CFG_WDEV_LOCK_THREAD_SUPPORT
-					if (in_interrupt()) {
-						pFrameBuf = kalMemAlloc(prSwRfb->u2PacketLen, PHY_MEM_TYPE);
-						fgIsInterruptContext = TRUE;
-					} else {
-						pFrameBuf = kalMemAlloc(prSwRfb->u2PacketLen, VIR_MEM_TYPE);
-						fgIsInterruptContext = FALSE;
-					}
-
-					if (!pFrameBuf) {
-						DBGLOG(SAA, ERROR, "Alloc buffer for frame failed\n");
-						return WLAN_STATUS_RESOURCES;
-					}
-
+					pFrameBuf = kalMemAlloc(prSwRfb->u2PacketLen,
+											VIR_MEM_TYPE);
 					kalMemCopy((void *) pFrameBuf,
 								(void *) prDeauthFrame,
 								prSwRfb->u2PacketLen);
@@ -1997,8 +1934,7 @@ uint32_t saaFsmRunEventRxDeauth(IN struct ADAPTER *prAdapter,
 										pFrameBuf,
 										prSwRfb->u2PacketLen,
 										NULL,
-										0,
-										fgIsInterruptContext);
+										0);
 #else
 					cfg80211_rx_mlme_mgmt(
 						prGlueInfo->prDevHandler,
@@ -2032,19 +1968,8 @@ uint32_t saaFsmRunEventRxDeauth(IN struct ADAPTER *prAdapter,
 							prStaRec->ucBssIndex);
 			ucRoleIdx = (uint8_t)prBssInfo->u4PrivateData;
 #if CFG_WDEV_LOCK_THREAD_SUPPORT
-			if (in_interrupt()) {
-				pFrameBuf = kalMemAlloc(prSwRfb->u2PacketLen, PHY_MEM_TYPE);
-				fgIsInterruptContext = TRUE;
-			} else {
-				pFrameBuf = kalMemAlloc(prSwRfb->u2PacketLen, VIR_MEM_TYPE);
-				fgIsInterruptContext = FALSE;
-			}
-
-			if (!pFrameBuf) {
-				DBGLOG(SAA, ERROR, "Alloc buffer for frame failed\n");
-				return WLAN_STATUS_RESOURCES;
-			}
-
+			pFrameBuf = kalMemAlloc(prSwRfb->u2PacketLen,
+									VIR_MEM_TYPE);
 			kalMemCopy((void *) pFrameBuf,
 						(void *) prDeauthFrame,
 						prSwRfb->u2PacketLen);
@@ -2055,8 +1980,7 @@ uint32_t saaFsmRunEventRxDeauth(IN struct ADAPTER *prAdapter,
 								pFrameBuf,
 								prSwRfb->u2PacketLen,
 								NULL,
-								0,
-								fgIsInterruptContext);
+								0);
 #else
 			cfg80211_rx_mlme_mgmt(
 				prGlueInfo->prP2PInfo[ucRoleIdx]
@@ -2093,19 +2017,8 @@ uint32_t saaFsmRunEventRxDeauth(IN struct ADAPTER *prAdapter,
 				"notification of RX deauthentication %d\n",
 				prSwRfb->u2PacketLen);
 #if CFG_WDEV_LOCK_THREAD_SUPPORT
-			if (in_interrupt()) {
-				pFrameBuf = kalMemAlloc(prSwRfb->u2PacketLen, PHY_MEM_TYPE);
-				fgIsInterruptContext = TRUE;
-			} else {
-				pFrameBuf = kalMemAlloc(prSwRfb->u2PacketLen, VIR_MEM_TYPE);
-				fgIsInterruptContext = FALSE;
-			}
-
-			if (!pFrameBuf) {
-				DBGLOG(SAA, ERROR, "Alloc buffer for frame failed\n");
-				return WLAN_STATUS_RESOURCES;
-			}
-
+			pFrameBuf = kalMemAlloc(prSwRfb->u2PacketLen,
+									VIR_MEM_TYPE);
 			kalMemCopy((void *) pFrameBuf,
 						(void *) prDeauthFrame,
 						prSwRfb->u2PacketLen);
@@ -2115,8 +2028,7 @@ uint32_t saaFsmRunEventRxDeauth(IN struct ADAPTER *prAdapter,
 								pFrameBuf,
 								prSwRfb->u2PacketLen,
 								NULL,
-								0,
-								fgIsInterruptContext);
+								0);
 #else
 			cfg80211_rx_mlme_mgmt(
 				prAdapter->prGlueInfo->prDevHandler,
@@ -2299,7 +2211,6 @@ uint32_t saaFsmRunEventRxDisassoc(IN struct ADAPTER *prAdapter,
 	struct CONNECTION_SETTINGS *prConnSettings = NULL;
 #if CFG_WDEV_LOCK_THREAD_SUPPORT
 	uint8_t* pFrameBuf = NULL;
-	uint8_t fgIsInterruptContext = FALSE;
 #endif
 #endif
 
@@ -2401,19 +2312,8 @@ uint32_t saaFsmRunEventRxDisassoc(IN struct ADAPTER *prAdapter,
 						prSwRfb->u2PacketLen);
 					if (wdev->current_bss) {
 #if CFG_WDEV_LOCK_THREAD_SUPPORT
-						if (in_interrupt()) {
-							pFrameBuf = kalMemAlloc(prSwRfb->u2PacketLen, PHY_MEM_TYPE);
-							fgIsInterruptContext = TRUE;
-						} else {
-							pFrameBuf = kalMemAlloc(prSwRfb->u2PacketLen, VIR_MEM_TYPE);
-							fgIsInterruptContext = FALSE;
-						}
-
-						if (!pFrameBuf) {
-							DBGLOG(SAA, ERROR, "Alloc buffer for frame failed\n");
-							return WLAN_STATUS_RESOURCES;
-						}
-
+						pFrameBuf = kalMemAlloc(prSwRfb->u2PacketLen,
+												VIR_MEM_TYPE);
 						kalMemCopy((void *) pFrameBuf,
 									(void *) prDisassocFrame,
 									prSwRfb->u2PacketLen);
@@ -2423,8 +2323,7 @@ uint32_t saaFsmRunEventRxDisassoc(IN struct ADAPTER *prAdapter,
 											pFrameBuf,
 											prSwRfb->u2PacketLen,
 											NULL,
-											0,
-											fgIsInterruptContext);
+											0);
 #else
 						cfg80211_rx_mlme_mgmt(
 						prGlueInfo->prDevHandler,
@@ -2464,19 +2363,8 @@ uint32_t saaFsmRunEventRxDisassoc(IN struct ADAPTER *prAdapter,
 
 			if (wdev->current_bss) {
 #if CFG_WDEV_LOCK_THREAD_SUPPORT
-				if (in_interrupt()) {
-					pFrameBuf = kalMemAlloc(prSwRfb->u2PacketLen, PHY_MEM_TYPE);
-					fgIsInterruptContext = TRUE;
-				} else {
-					pFrameBuf = kalMemAlloc(prSwRfb->u2PacketLen, VIR_MEM_TYPE);
-					fgIsInterruptContext = FALSE;
-				}
-
-				if (!pFrameBuf) {
-					DBGLOG(SAA, ERROR, "Alloc buffer for frame failed\n");
-					return WLAN_STATUS_RESOURCES;
-				}
-
+				pFrameBuf = kalMemAlloc(prSwRfb->u2PacketLen,
+										VIR_MEM_TYPE);
 				kalMemCopy((void *) pFrameBuf,
 							(void *) prDisassocFrame,
 							prSwRfb->u2PacketLen);
@@ -2487,8 +2375,7 @@ uint32_t saaFsmRunEventRxDisassoc(IN struct ADAPTER *prAdapter,
 									pFrameBuf,
 									prSwRfb->u2PacketLen,
 									NULL,
-									0,
-									fgIsInterruptContext);
+									0);
 #else
 				cfg80211_rx_mlme_mgmt(
 					prGlueInfo->prP2PInfo[ucRoleIdx]
@@ -2526,19 +2413,8 @@ uint32_t saaFsmRunEventRxDisassoc(IN struct ADAPTER *prAdapter,
 				prSwRfb->u2PacketLen);
 			if (wdev->current_bss) {
 #if CFG_WDEV_LOCK_THREAD_SUPPORT
-				if (in_interrupt()) {
-					pFrameBuf = kalMemAlloc(prSwRfb->u2PacketLen, PHY_MEM_TYPE);
-					fgIsInterruptContext = TRUE;
-				} else {
-					pFrameBuf = kalMemAlloc(prSwRfb->u2PacketLen, VIR_MEM_TYPE);
-					fgIsInterruptContext = FALSE;
-				}
-
-				if (!pFrameBuf) {
-					DBGLOG(SAA, ERROR, "Alloc buffer for frame failed\n");
-					return WLAN_STATUS_RESOURCES;
-				}
-
+				pFrameBuf = kalMemAlloc(prSwRfb->u2PacketLen,
+										VIR_MEM_TYPE);
 				kalMemCopy((void *) pFrameBuf,
 							(void *) prDisassocFrame,
 							prSwRfb->u2PacketLen);
@@ -2548,8 +2424,7 @@ uint32_t saaFsmRunEventRxDisassoc(IN struct ADAPTER *prAdapter,
 									pFrameBuf,
 									prSwRfb->u2PacketLen,
 									NULL,
-									0,
-									fgIsInterruptContext);
+									0);
 #else
 				cfg80211_rx_mlme_mgmt(
 					prAdapter->prGlueInfo->prDevHandler,

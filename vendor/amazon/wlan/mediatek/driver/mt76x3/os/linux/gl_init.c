@@ -1463,17 +1463,9 @@ void wlanSchedWDevLockWorkQueue(struct work_struct *work)
 			if (prParamWDevLock->pFrameBuf) {
 				DBGLOG(REQ, TRACE, "Free pFrameBuf 0x%x\n",
 						prParamWDevLock->pFrameBuf);
-
-				if (prParamWDevLock->fgIsInterruptContext) {
-					kalMemFree(prParamWDevLock->pFrameBuf,
-								PHY_MEM_TYPE,
-								prParamWDevLock->u4InfoBufLen);
-				} else {
-					kalMemFree(prParamWDevLock->pFrameBuf,
-								VIR_MEM_TYPE,
-								prParamWDevLock->u4InfoBufLen);
-				}
-
+				kalMemFree(prParamWDevLock->pFrameBuf,
+							VIR_MEM_TYPE,
+							prParamWDevLock->u4InfoBufLen);
 				prParamWDevLock->pFrameBuf = NULL;
 			}
 
@@ -1485,16 +1477,9 @@ void wlanSchedWDevLockWorkQueue(struct work_struct *work)
 
 			DBGLOG(REQ, TRACE, "Free prParamWDevLock- 0x%x\n",
 					prParamWDevLock);
-
-			if (prParamWDevLock->fgIsInterruptContext) {
-				kalMemFree(prParamWDevLock,
-							PHY_MEM_TYPE,
-							sizeof(PARAM_WDEV_LOCK_THREAD));
-			} else {
-				kalMemFree(prParamWDevLock,
-							VIR_MEM_TYPE,
-							sizeof(PARAM_WDEV_LOCK_THREAD));
-			}
+			kalMemFree(prParamWDevLock,
+						VIR_MEM_TYPE,
+						sizeof(PARAM_WDEV_LOCK_THREAD));
 		}
 	}
 
@@ -3545,7 +3530,6 @@ static int32_t wlanProbe(void *pvData, void *pvDriverData)
 		ADAPTER_START_FAIL,
 		NET_REGISTER_FAIL,
 		PROC_INIT_FAIL,
-		PROC_P2P_NET_REGISTER_FAIL,
 		FAIL_MET_INIT_PROCFS,
 		FAIL_REASON_NUM
 	} eFailReason;
@@ -3952,10 +3936,11 @@ static int32_t wlanProbe(void *pvData, void *pvDriverData)
 				DBGLOG(INIT, ERROR,
 					"%s: Failed to register p2p device\n",
 					__func__);
-
+#if CFG_RESET_DUE_TO_REG_NETDEV_FAIL
 				i4Status = -ENXIO;
-				eFailReason = PROC_P2P_NET_REGISTER_FAIL;
+				eFailReason = NET_REGISTER_FAIL;
 				break;
+#endif
 			}
 		}
 #endif
@@ -4092,11 +4077,6 @@ static int32_t wlanProbe(void *pvData, void *pvDriverData)
 			kalMetRemoveProcfs();
 			/* FALLTHRU */
 #endif
-		case PROC_P2P_NET_REGISTER_FAIL:
-#if WLAN_INCLUDE_PROC
-			procRemoveProcfs();
-#endif
-			/* FALLTHRU */
 		case PROC_INIT_FAIL:
 			wlanNetUnregister(prWdev);
 			/* FALLTHRU */
@@ -4117,11 +4097,10 @@ static int32_t wlanProbe(void *pvData, void *pvDriverData)
 		case BUS_SET_IRQ_FAIL:
 #if CFG_FTV_abc123_135_PATCH
 			if (g_u4ProbeChipResetTimes < PROBE_CHIP_RESET_LIMIT) {
-				DBGLOG(INIT, ERROR, "wlanProbe: trigger whole reset(%d)\n",
-						g_u4ProbeChipResetTimes);
+				DBGLOG(INIT, ERROR, "wlanProbe: trigger whole reset\n");
 				g_u4ProbeChipResetTimes++;
-				GL_RESET_TRIGGER(prAdapter, RST_FLAG_CHIP_RESET,
-									RST_PROBE_FAIL);
+				eResetReason = RST_PROBE_FAIL;
+				GL_RESET_TRIGGER(prAdapter, RST_FLAG_CHIP_RESET);
 			}
 #endif
 			wlanWakeLockUninit(prGlueInfo);
@@ -4129,7 +4108,6 @@ static int32_t wlanProbe(void *pvData, void *pvDriverData)
 			/* prGlueInfo->prAdapter is released in
 			 * wlanNetDestroy
 			 */
-			wlanUnregisterNotifier();
 			/* Set NULL value for local prAdapter as well */
 			prAdapter = NULL;
 			break;
@@ -4505,11 +4483,6 @@ static int initWlan(void)
 	}
 	gPrDev = NULL;
 
-#if (CFG_CHIP_RESET_SUPPORT)
-		glResetInit(prGlueInfo);
-		DBGLOG(INIT, ERROR, "wlanProbe: glResetInit() done\n");
-#endif
-
 	ret = ((glRegisterBus(wlanProbe,
 			      wlanRemove) == WLAN_STATUS_SUCCESS) ? 0 : -EIO);
 
@@ -4517,10 +4490,8 @@ static int initWlan(void)
 		kalUninitIOBuffer();
 		return ret;
 	}
-#if 0
 #if (CFG_CHIP_RESET_SUPPORT)
 	glResetInit(prGlueInfo);
-#endif
 #endif
 	kalFbNotifierReg((struct GLUE_INFO *) wiphy_priv(
 				 gprWdev->wiphy));

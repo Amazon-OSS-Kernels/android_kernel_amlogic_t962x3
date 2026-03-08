@@ -86,9 +86,7 @@
  *                              C O N S T A N T S
  *******************************************************************************
  */
-#if CFG_SUPPORT_WAPI
-#define KEY_BUF_SIZE	1024
-#endif
+
 /*******************************************************************************
  *                             D A T A   T Y P E S
  *******************************************************************************
@@ -859,9 +857,7 @@ int mtk_cfg80211_get_link_statistics(struct wiphy *wiphy,
 	} else {
 		rStatus = kalIoctl(prGlueInfo, wlanoidQueryRssi, &i4Rssi,
 			sizeof(i4Rssi), TRUE, FALSE, FALSE, &u4BufLen);
-		if (rStatus == WLAN_STATUS_ADAPTER_NOT_READY)
-			DBGLOG(REQ, INFO, "No AIS connection, unable to retrieve rssi\n");
-		else if (rStatus != WLAN_STATUS_SUCCESS)
+		if (rStatus != WLAN_STATUS_SUCCESS)
 			DBGLOG(REQ, WARN, "unable to retrieve rssi\n");
 	}
 
@@ -1141,6 +1137,7 @@ void mtk_cfg80211_abort_scan(struct wiphy *wiphy,
 		DBGLOG(REQ, ERROR, "wlanoidAbortScan fail 0x%x\n", rStatus);
 }
 
+static uint8_t wepBuf[48];
 #if CFG_SUPPORT_CFG80211_AUTH
 /*----------------------------------------------------------------------------*/
 /*!
@@ -1161,7 +1158,6 @@ int mtk_cfg80211_auth(struct wiphy *wiphy, struct net_device *ndev,
 	uint32_t u4BufLen;
 	struct PARAM_CONNECT rNewSsid;
 	enum ENUM_PARAM_OP_MODE eOpMode;
-	uint8_t wepBuf[48];
 	struct CONNECTION_SETTINGS *prConnSettings = NULL;
 #if CFG_SUPPORT_REPLAY_DETECTION
 	struct GL_DETECT_REPLAY_INFO *prDetRplyInfo = NULL;
@@ -1197,10 +1193,6 @@ int mtk_cfg80211_auth(struct wiphy *wiphy, struct net_device *ndev,
 	DBGLOG(REQ, INFO, "auth_type:%d\n", req->auth_type);
 
 	prConnSettings = &prGlueInfo->prAdapter->rWifiVar.rConnSettings;
-
-	/*  Reset eEncStatus to DEFAULT for supplicant SME case */
-	prConnSettings->eEncStatus = ENUM_ENCRYPTION_DISABLED;
-
 	if (mtk_IsP2PNetDevice(prGlueInfo, ndev) > 0) {
 		memset(&connect, 0, sizeof(connect));
 		sme->bssid = req->bss->bssid;
@@ -1310,19 +1302,16 @@ int mtk_cfg80211_auth(struct wiphy *wiphy, struct net_device *ndev,
 	case NL80211_AUTHTYPE_OPEN_SYSTEM:
 		if (!(prGlueInfo->rWpaInfo.u4AuthAlg & AUTH_TYPE_OPEN_SYSTEM))
 			fgNewAuthParam = TRUE;
-		prGlueInfo->rWpaInfo.u4AuthAlg = 0;
 		prGlueInfo->rWpaInfo.u4AuthAlg |= AUTH_TYPE_OPEN_SYSTEM;
 		break;
 	case NL80211_AUTHTYPE_SHARED_KEY:
 		if (!(prGlueInfo->rWpaInfo.u4AuthAlg & AUTH_TYPE_SHARED_KEY))
 			fgNewAuthParam = TRUE;
-		prGlueInfo->rWpaInfo.u4AuthAlg = 0;
 		prGlueInfo->rWpaInfo.u4AuthAlg |= AUTH_TYPE_SHARED_KEY;
 		break;
 	case NL80211_AUTHTYPE_SAE:
 		if (!(prGlueInfo->rWpaInfo.u4AuthAlg & AUTH_TYPE_SAE))
 			fgNewAuthParam = TRUE;
-		prGlueInfo->rWpaInfo.u4AuthAlg = 0;
 		prGlueInfo->rWpaInfo.u4AuthAlg |= AUTH_TYPE_SAE;
 		break;
 #if CFG_SUPPORT_802_11R
@@ -1337,7 +1326,6 @@ int mtk_cfg80211_auth(struct wiphy *wiphy, struct net_device *ndev,
 		DBGLOG(REQ, WARN,
 			"Auth type: %ld not support, use default OPEN system\n",
 			req->auth_type);
-		prGlueInfo->rWpaInfo.u4AuthAlg = 0;
 		prGlueInfo->rWpaInfo.u4AuthAlg |= AUTH_TYPE_OPEN_SYSTEM;
 		break;
 	}
@@ -1471,7 +1459,6 @@ int mtk_cfg80211_connect(struct wiphy *wiphy,
 	struct PARAM_CONNECT rNewSsid;
 	u_int8_t fgCarryWPSIE = FALSE;
 	enum ENUM_PARAM_OP_MODE eOpMode;
-	uint8_t wepBuf[48];
 	uint32_t i, u4AkmSuite = 0;
 	struct DOT11_RSNA_CONFIG_AUTHENTICATION_SUITES_ENTRY
 		*prEntry;
@@ -2600,7 +2587,7 @@ void mtk_cfg80211_mgmt_frame_register(IN struct wiphy *wiphy,
 			break;
 		default:
 			DBGLOG(INIT, TRACE,
-				"unsupported frame type:%x\n",
+				"Ask frog to add code for mgmt:%x\n",
 				frame_type);
 			break;
 		}
@@ -3051,8 +3038,10 @@ int mtk_cfg80211_testmode_set_key_ext(IN struct wiphy
 	uint32_t u4BufLen = 0;
 	const uint8_t aucBCAddr[] = BC_MAC_ADDR;
 
-	struct PARAM_KEY *prWpiKey;
-	uint8_t *keyStructBuf;
+	struct PARAM_KEY *prWpiKey = (struct PARAM_KEY *)
+				     keyStructBuf;
+
+	memset(keyStructBuf, 0, sizeof(keyStructBuf));
 
 	ASSERT(wiphy);
 
@@ -3062,22 +3051,10 @@ int mtk_cfg80211_testmode_set_key_ext(IN struct wiphy
 	DBGLOG(INIT, INFO, "--> %s()\n", __func__);
 #endif
 
-	if (len < sizeof(struct NL80211_DRIVER_SET_KEY_EXTS)) {
-		DBGLOG(REQ, ERROR, "len [%d] is invalid!\n", len);
-		return -EINVAL;
-	}
 	if (data == NULL || len == 0) {
 		DBGLOG(INIT, TRACE, "%s data or len is invalid\n", __func__);
 		return -EINVAL;
 	}
-
-	keyStructBuf = kalMemAlloc(KEY_BUF_SIZE, VIR_MEM_TYPE);
-	if (keyStructBuf == NULL) {
-		DBGLOG(REQ, ERROR, "Alloc key buffer fail\n");
-		return -ENOMEM;
-	}
-	kalMemSet(keyStructBuf, 0, KEY_BUF_SIZE);
-	prWpiKey = (struct PARAM_KEY *) keyStructBuf;
 
 	prParams = (struct NL80211_DRIVER_SET_KEY_EXTS *) data;
 	prIWEncExt = (struct iw_encode_exts *)&prParams->ext;
@@ -3087,13 +3064,11 @@ int mtk_cfg80211_testmode_set_key_ext(IN struct wiphy
 		prWpiKey->u4KeyIndex = prParams->key_index;
 		prWpiKey->u4KeyIndex--;
 		if (prWpiKey->u4KeyIndex > 1) {
-			fgIsValid = -EINVAL;
-			goto freeBuf;
+			return -EINVAL;
 		}
 
 		if (prIWEncExt->key_len != 32) {
-			fgIsValid = -EINVAL;
-			goto freeBuf;
+			return -EINVAL;
 		}
 		prWpiKey->u4KeyLength = prIWEncExt->key_len;
 
@@ -3132,10 +3107,6 @@ int mtk_cfg80211_testmode_set_key_ext(IN struct wiphy
 		}
 
 	}
-
-freeBuf:
-	if (keyStructBuf)
-		kalMemFree(keyStructBuf, VIR_MEM_TYPE, KEY_BUF_SIZE);
 	return fgIsValid;
 }
 #endif
@@ -3159,11 +3130,6 @@ mtk_cfg80211_testmode_get_sta_statistics(IN struct wiphy
 
 	ASSERT(wiphy);
 	ASSERT(prGlueInfo);
-
-	if (len < sizeof(struct NL80211_DRIVER_GET_STA_STATISTICS_PARAMS)) {
-		DBGLOG(OID, WARN, "len [%d] is invalid!\n", len);
-		return -EINVAL;
-	}
 
 	if (data && len)
 		prParams = (struct NL80211_DRIVER_GET_STA_STATISTICS_PARAMS
@@ -3728,11 +3694,6 @@ int mtk_cfg80211_testmode_sw_cmd(IN struct wiphy *wiphy,
 	DBGLOG(INIT, INFO, "--> %s()\n", __func__);
 #endif
 
-	if (len < sizeof(struct NL80211_DRIVER_SW_CMD_PARAMS)) {
-		DBGLOG(REQ, ERROR, "len [%d] is invalid!\n", len);
-		return -EINVAL;
-	}
-
 	if (data && len)
 		prParams = (struct NL80211_DRIVER_SW_CMD_PARAMS *) data;
 
@@ -3760,10 +3721,6 @@ static int mtk_wlan_cfg_testmode_cmd(struct wiphy *wiphy,
 
 	ASSERT(wiphy);
 
-	if (len < sizeof(struct NL80211_DRIVER_TEST_MODE_PARAMS)) {
-		DBGLOG(REQ, ERROR, "len [%d] is invalid!\n", len);
-		return -EINVAL;
-	}
 	if (!data || !len) {
 		DBGLOG(REQ, ERROR, "mtk_cfg80211_testmode_cmd null data\n");
 		return -EINVAL;
@@ -4111,9 +4068,6 @@ struct P2P_ROLE_FSM_INFO *prP2pRoleFsmInfo =
 		(struct P2P_ROLE_FSM_INFO *) NULL;
 struct P2P_CONNECTION_REQ_INFO *prConnReqInfo =
 		(struct P2P_CONNECTION_REQ_INFO *) NULL;
-#endif
-#if CFG_SUPPORT_WPS2
-    uint8_t fgCarryWPSIE = FALSE;
 #endif
 
 	prGlueInfo = (struct GLUE_INFO *) wiphy_priv(wiphy);
@@ -4475,33 +4429,7 @@ struct P2P_CONNECTION_REQ_INFO *prConnReqInfo =
 	if (req->ie && req->ie_len > 0) {
 #if CFG_SUPPORT_CFG80211_AUTH
 		pucIEStart = (uint8_t *)req->ie;
-#if CFG_SUPPORT_WAPI
-		rStatus = kalIoctl(prGlueInfo,
-				   wlanoidSetWapiAssocInfo,
-				   pucIEStart, req->ie_len,
-				   FALSE, FALSE, FALSE, &u4BufLen);
-
-		if (rStatus != WLAN_STATUS_SUCCESS)
-			DBGLOG(SEC, WARN,
-			"[wapi] set wapi assoc info error:%x\n", rStatus);
 #endif
-#if CFG_SUPPORT_WPS2
-		if (wextSrchDesiredWPSIE(pucIEStart, req->ie_len, 0xDD,
-					 (uint8_t **) &prDesiredIE)) {
-			prGlueInfo->fgWpsActive = TRUE;
-			fgCarryWPSIE = TRUE;
-
-			rStatus = kalIoctl(prGlueInfo, wlanoidSetWSCAssocInfo,
-					   prDesiredIE, IE_SIZE(prDesiredIE),
-					   FALSE, FALSE, FALSE, &u4BufLen);
-			if (rStatus != WLAN_STATUS_SUCCESS)
-				DBGLOG(SEC, WARN,
-					"[WSC] set WSC assoc info error:%x\n",
-					rStatus);
-		}
-#endif
-#endif
-
 #if CFG_SUPPORT_PASSPOINT
 		if (wextSrchDesiredHS20IE((uint8_t *) req->ie, req->ie_len,
 					  (uint8_t **) &prDesiredIE)) {
@@ -4580,13 +4508,6 @@ struct P2P_CONNECTION_REQ_INFO *prConnReqInfo =
 			}
 		}
 
-		/* Find non-wfa vendor specific ies set from upper layer */
-		if (cfg80211_get_non_wfa_vendor_ie(prGlueInfo, pucIEStart,
-				req->ie_len) > 0) {
-			DBGLOG(RSN, INFO, "Found non-wfa vendor ie (len=%u)\n",
-				prGlueInfo->non_wfa_vendor_ie_len);
-		}
-
 #if CFG_SUPPORT_OWE
 		/* Gen OWE IE */
 		if (wextSrchDesiredWPAIE(pucIEStart, req->ie_len, 0xff,
@@ -4647,16 +4568,6 @@ struct P2P_CONNECTION_REQ_INFO *prConnReqInfo =
 #endif
 #endif
 	}
-
-#if CFG_SUPPORT_CFG80211_AUTH
-#if CFG_SUPPORT_WPS2
-	/* clear WSC Assoc IE buffer in case WPS IE is not detected */
-	if (fgCarryWPSIE == FALSE) {
-		kalMemZero(&prGlueInfo->aucWSCAssocInfoIE, 200);
-		prGlueInfo->u2WSCAssocInfoIELen = 0;
-	}
-#endif
-#endif
 
 	/* Fill WPA info - mfp setting */
 		/* Must put after paring RSNE from upper layer
@@ -5350,7 +5261,7 @@ mtk_cfg80211_tdls_mgmt(struct wiphy *wiphy,
 	rCmdMgt.ucActionCode = action_code;
 	kalMemCopy(&(rCmdMgt.aucPeer), peer, 6);
 
-	if (len > TDLS_SEC_BUF_LENGTH) {
+	if  (len > TDLS_SEC_BUF_LENGTH) {
 		DBGLOG(REQ, WARN, "%s:len > TDLS_SEC_BUF_LENGTH\n", __func__);
 		return -EINVAL;
 	}
@@ -5393,12 +5304,6 @@ mtk_cfg80211_tdls_mgmt(struct wiphy *wiphy,
 	rCmdMgt.ucDialogToken = dialog_token;
 	rCmdMgt.ucActionCode = action_code;
 	kalMemCopy(&(rCmdMgt.aucPeer), peer, 6);
-
-	if (len > TDLS_SEC_BUF_LENGTH) {
-		DBGLOG(REQ, WARN, "%s:len > TDLS_SEC_BUF_LENGTH\n", __func__);
-		return -EINVAL;
-	}
-
 	kalMemCopy(&(rCmdMgt.aucSecBuf), buf, len);
 
 	kalIoctl(prGlueInfo, TdlsexLinkMgt, &rCmdMgt,
@@ -5437,13 +5342,11 @@ mtk_cfg80211_tdls_mgmt(struct wiphy *wiphy,
 	rCmdMgt.ucDialogToken = dialog_token;
 	rCmdMgt.ucActionCode = action_code;
 	kalMemCopy(&(rCmdMgt.aucPeer), peer, 6);
-
-	if (len > TDLS_SEC_BUF_LENGTH) {
-		DBGLOG(REQ, WARN, "%s:len > TDLS_SEC_BUF_LENGTH\n", __func__);
-		return -EINVAL;
-	}
-
-	kalMemCopy(&(rCmdMgt.aucSecBuf), buf, len);
+	if	(len > TDLS_SEC_BUF_LENGTH)
+		DBGLOG(REQ, WARN,
+		       "In mtk_cfg80211_tdls_mgmt , len > TDLS_SEC_BUF_LENGTH, please check\n");
+	else
+		kalMemCopy(&(rCmdMgt.aucSecBuf), buf, len);
 
 	kalIoctl(prGlueInfo, TdlsexLinkMgt, &rCmdMgt,
 		 sizeof(struct TDLS_CMD_LINK_MGT), FALSE, FALSE, FALSE,

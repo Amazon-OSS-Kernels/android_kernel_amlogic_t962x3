@@ -453,10 +453,8 @@ void nicCmdEventPfmuTagRead(IN struct ADAPTER *prAdapter,
 	g_rPfmuTag1 = prPfumTagRead->ru4TxBfPFMUTag1;
 	g_rPfmuTag2 = prPfumTagRead->ru4TxBfPFMUTag2;
 
-	if(prCmdInfo->fgIsOid){
-		kalOidComplete(prGlueInfo, prCmdInfo->fgSetQuery, u4QueryInfoLen, WLAN_STATUS_SUCCESS);
-		prCmdInfo->fgIsOid = FALSE;
-	}
+	kalOidComplete(prGlueInfo, prCmdInfo->fgSetQuery,
+		       u4QueryInfoLen, WLAN_STATUS_SUCCESS);
 
 	DBGLOG(INIT, INFO,
 	       "========================== (R)Tag1 info ==========================\n");

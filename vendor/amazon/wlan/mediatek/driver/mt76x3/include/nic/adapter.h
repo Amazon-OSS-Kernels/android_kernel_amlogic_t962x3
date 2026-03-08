@@ -603,12 +603,6 @@ struct BSS_INFO {
 
 	enum PARAM_POWER_MODE ePowerModeFromUser2G;
 	enum PARAM_POWER_MODE ePowerModeFromUser5G;
-
-#if CFG_SUPPORT_DFS
-	struct TIMER rCsaTimer;
-	struct SWITCH_CH_AND_BAND_PARAMS CSAParams;
-	uint8_t fgHasStopTx;
-#endif
 };
 
 /* Support AP Selection */
@@ -1595,11 +1589,8 @@ struct ADAPTER {
 #if CFG_WOW_SUPPORT
 	struct WOW_CTRL	rWowCtrl;
 	uint8_t mdns_offload_enable;
-
-#define  MDNS_MAX_PATTERNS     4
-#define  MDNS_PATTERN_MAX_LEN  8
-	uint8_t		mdns_wow_patterns_no;
-	uint8_t		mdns_wow_patterns[MDNS_MAX_PATTERNS][MDNS_PATTERN_MAX_LEN];
+	uint8_t mdns_wow_pattern_len;
+	uint8_t mdns_wow_pattern[WLAN_CFG_VALUE_LEN_MAX];
 #endif
 
 #if CFG_SUPPORT_WOW_EINT

@@ -337,9 +337,6 @@ static int32_t ResponseToQA(struct HQA_CMD_FRAME
 			    IN union iwreq_data *prIwReqData, int32_t i4Length,
 			    int32_t i4Status)
 {
-	if (!prIwReqData)
-		return -EINVAL;
-
 	HqaCmdFrame->Length = ntohs((i4Length));
 
 	i4Status = ntohs((i4Status));
@@ -351,12 +348,6 @@ static int32_t ResponseToQA(struct HQA_CMD_FRAME
 				   sizeof((HqaCmdFrame)->Length) +
 				   sizeof((HqaCmdFrame)->Sequence) +
 				   ntohs((HqaCmdFrame)->Length);
-
-	if (prIwReqData->data.length == 0)
-		return -EFAULT;
-
-	if (prIwReqData->data.length > sizeof(*HqaCmdFrame))
-		prIwReqData->data.length = sizeof(*HqaCmdFrame);
 
 	if (copy_to_user(prIwReqData->data.pointer,
 			 (uint8_t *) (HqaCmdFrame), prIwReqData->data.length)) {
@@ -2025,9 +2016,7 @@ static int32_t HQA_RfRegBulkRead(struct net_device
 		u4Offset = u4Offset | (u4WfSel << 16);
 	}
 
-	if ((2 + (u4Length * 4)) > sizeof(HqaCmdFrame->Data)
-		|| (u4Length >> 30) != 0) {
-                /* avoid integer overflow by checking u4Length * 4: checking whether 2 MSB is 0*/
+	if ((2 + (u4Length * 4)) > sizeof(HqaCmdFrame->Data)) {
 		i4Status = WLAN_STATUS_INVALID_LENGTH;
 		return i4Status;
 	}
@@ -2161,14 +2150,6 @@ static int32_t HQA_ReadEEPROM(struct net_device *prNetDev,
 	Offset = ntohs(Offset);
 	memcpy(&Len, HqaCmdFrame->Data + 2 * 1, 2);
 	Len = ntohs(Len);
-
-	/*  HQA_ReadEEPROM read size  only 16 bytes is used */
-	if (Len > EFUSE_BLOCK_SIZE) {
-		DBGLOG(INIT, ERROR,
-			"QA_AGENT HQA_ReadEEPROM Len : %d not supported\n",
-			Len);
-		return WLAN_STATUS_FAILURE;
-	}
 
 #if  (CFG_EEPROM_PAGE_ACCESS == 1)
 	prGlueInfo = *((struct GLUE_INFO **) netdev_priv(prNetDev));
@@ -2332,7 +2313,6 @@ static int32_t HQA_ReadBulkEEPROM(struct net_device
 	struct PARAM_CUSTOM_ACCESS_EFUSE rAccessEfuseInfo;
 	uint32_t u4BufLen = 0;
 	uint8_t  u4Loop = 0;
-	uint32_t u4TotalOffset = 0;
 
 	uint16_t Buffer;
 	struct GLUE_INFO *prGlueInfo = NULL;
@@ -2359,24 +2339,8 @@ static int32_t HQA_ReadBulkEEPROM(struct net_device
 
 	memcpy(&Offset, HqaCmdFrame->Data + 2 * 0, 2);
 	Offset = ntohs(Offset);
-
-	if (Offset > (MAX_EEPROM_BUFFER_SIZE - 1)) {
-		DBGLOG(INIT, ERROR, "%s Offset : %d out of range (0x%x)\n",
-			__func__, Offset, MAX_EEPROM_BUFFER_SIZE);
-		return WLAN_STATUS_FAILURE;
-	}
-
 	memcpy(&Len, HqaCmdFrame->Data + 2 * 1, 2);
 	Len = ntohs(Len);
-
-    /* for bulk read, only 16 bytes is used */
-	if (Len > EFUSE_BLOCK_SIZE) {
-		DBGLOG(INIT, ERROR,
-			"QA_AGENT HQA_ReadBulkEEPROM Len : %d not supported\n",
-			Len);
-		return WLAN_STATUS_FAILURE;
-	}
-
 	tmp = Offset;
 	DBGLOG(INIT, INFO,
 	       "QA_AGENT HQA_ReadBulkEEPROM Offset : %d\n", Offset);
@@ -2419,15 +2383,16 @@ static int32_t HQA_ReadBulkEEPROM(struct net_device
 		}
 #endif
 		for (u4Loop = 0; u4Loop < Len; u4Loop += 2) {
-			u4TotalOffset = Offset + u4Loop;
-			if (u4TotalOffset >= EFUSE_BLOCK_SIZE - 1) {
+			if (Offset + u4Loop + 2 >
+				sizeof(prGlueInfo->prAdapter->aucEepromVaule))
+			{
 				DBGLOG(RFTEST, ERROR,
 					"%s : memcpy data overflow, offset=%lu, ignored.\n",
-					__func__, u4TotalOffset + 2);
+					__func__, Offset + u4Loop + 2);
 				break;
 			}
 			memcpy(&Buffer, prGlueInfo->prAdapter->aucEepromVaule +
-			       u4TotalOffset, 2);
+			       Offset + u4Loop, 2);
 			Buffer = ntohs(Buffer);
 			DBGLOG(INIT, INFO,
 			       ":From Efuse  u4Loop=%d  Buffer=%x\n",
@@ -2444,14 +2409,14 @@ static int32_t HQA_ReadBulkEEPROM(struct net_device
 
 	} else {  /* Read from EEPROM */
 		for (u4Loop = 0; u4Loop < Len; u4Loop += 2) {
-			u4TotalOffset = Offset + u4Loop;
-			if (u4TotalOffset >= MAX_EEPROM_BUFFER_SIZE - 1) {
+			if (Offset + u4Loop + 2 > sizeof(uacEEPROMImage))
+			{
 				DBGLOG(RFTEST, ERROR,
 					"%s : memcpy data overflow, offset=%lu, ignored.\n",
-					__func__, u4TotalOffset + 2);
+					__func__, Offset + u4Loop + 2);
 				break;
 			}
-			memcpy(&Buffer, uacEEPROMImage + u4TotalOffset, 2);
+			memcpy(&Buffer, uacEEPROMImage + Offset + u4Loop, 2);
 			Buffer = ntohs(Buffer);
 			if (2 + u4Loop + 2 > sizeof(HqaCmdFrame->Data))
 			{
@@ -2463,7 +2428,7 @@ static int32_t HQA_ReadBulkEEPROM(struct net_device
 			memcpy(HqaCmdFrame->Data + 2 + u4Loop, &Buffer, 2);
 			DBGLOG(INIT, INFO,
 			       "QA_AGENT HQA_ReadBulkEEPROM u4Loop=%d  u4Value=%x\n",
-			       u4Loop, uacEEPROMImage[u4TotalOffset]);
+			       u4Loop, uacEEPROMImage[Offset + u4Loop]);
 		}
 	}
 #endif
@@ -2548,7 +2513,6 @@ static int32_t HQA_WriteBulkEEPROM(struct net_device
 	uint8_t  u4Loop = 0, u4Index = 0;
 	uint16_t ucTemp2;
 	uint16_t i = 0;
-	uint32_t u4TotalOffset = 0;
 
 	prGlueInfo = *((struct GLUE_INFO **) netdev_priv(prNetDev));
 	prAdapter = prGlueInfo->prAdapter;
@@ -2563,20 +2527,9 @@ static int32_t HQA_WriteBulkEEPROM(struct net_device
 
 	memcpy(&Offset, HqaCmdFrame->Data + 2 * 0, 2);
 	Offset = ntohs(Offset);
-
-	if (Offset > (MAX_EEPROM_BUFFER_SIZE - 1)) {
-		DBGLOG(INIT, ERROR, "%s Offset : %d out of range (0x%x)\n", __func__, Offset, MAX_EEPROM_BUFFER_SIZE);
-		return WLAN_STATUS_FAILURE;
-	}
-
 	memcpy(&Len, HqaCmdFrame->Data + 2 * 1, 2);
 	Len = ntohs(Len);
 
-	/* for bulk access, only 16 bytes is used */
-	if (Len > EFUSE_BLOCK_SIZE) {
-		DBGLOG(INIT, ERROR, "%s Len : %d not supported\n", __func__, Len);
-		return WLAN_STATUS_FAILURE;
-	}
 
 	DBGLOG(INIT, INFO, "Offset : %x, Len : %u\n", Offset, Len);
 
@@ -2721,19 +2674,10 @@ static int32_t HQA_WriteBulkEEPROM(struct net_device
 			memcpy(uacEEPROMImage + Offset, &ucTemp2, Len);
 		} else {
 			for (i = 0 ; i < 8 ; i++) {
-				/* Fix coverity issue: CID10708595 */
-				u4TotalOffset = Offset + 2 * i;
-				if (u4TotalOffset >
-				    MAX_EEPROM_BUFFER_SIZE - 1) {
-					DBGLOG(INIT, ERROR,
-					"%s u4TotalOffset : %d not supported\n",
-						__func__, u4TotalOffset);
-					return WLAN_STATUS_FAILURE;
-				}
 				memcpy(&ucTemp2,
 				       HqaCmdFrame->Data + 2 * 2 + 2 * i, 2);
 				ucTemp2 = ntohs(ucTemp2);
-				memcpy(uacEEPROMImage + u4TotalOffset,
+				memcpy(uacEEPROMImage + Offset + 2 * i,
 				       &ucTemp2, 2);
 			}
 
@@ -5450,8 +5394,7 @@ static int32_t HQA_GetDumpRecal(struct net_device *prNetDev,
 
 	DBGLOG(RFTEST, INFO, "prReCalInfo->u4Count = [%d]\n",
 						 prReCalInfo->u4Count);
-	/*According to nicExtEventRecalData prCalArray is 2048 groups*/
-	if (prReCalInfo->u4Count > 0 && prReCalInfo->u4Count < 2048) {
+	if (prReCalInfo->u4Count > 0) {
 		for (i = 0; i < prReCalInfo->u4Count; i++) {
 			u4Value = ntohl(prCalArray[i].u4CalId);
 			kalMemCopy(HqaCmdFrame->Data + 6 + u4RespLen,
