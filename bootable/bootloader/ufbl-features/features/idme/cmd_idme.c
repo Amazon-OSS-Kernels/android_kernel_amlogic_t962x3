@@ -23,26 +23,26 @@
 #include <string.h>
 
 #if !defined(UFBL_TESTS) && \
-	!defined(UFBL_PROJ_NEPTUNE)
+	!defined(UFBL_PROJ_ABC)
 #include <debug.h>
 #include <platform/mmc_core.h>
-#else /* UFBL_TESTS UFBL_PROJ_NEPTUNE */
+#else /* UFBL_TESTS UFBL_PROJ_ABC */
 #include <stdio.h>
 #include "ufbl_debug.h"
-#endif /* UFBL_TESTS UFBL_PROJ_NEPTUNE */
+#endif /* UFBL_TESTS UFBL_PROJ_ABC */
 #endif /* defined(SUPPORT_UBOOT) || defined(SUPPORT_BOLT) */
 
 #include "idme.h"
 
 #if !defined(UFBL_TESTS) && \
 	!defined(UFBL_PLATFORM_IMX) && \
-	!defined(UFBL_PROJ_NEPTUNE)
+	!defined(UFBL_PROJ_ABC)
 #include "fastboot.h"
 #endif
 
 /* Local variables */
-#if defined(UFBL_PROJ_COGNAC)
-/* cognac: the address is expected to be 64 aligned */
+#if defined(UFBL_PROJ_ABC)
+/* ABC: the address is expected to be 64 aligned */
 static unsigned char gidme_buff[CONFIG_IDME_SIZE] __aligned(64);
 #else
 /**
@@ -79,12 +79,12 @@ static int idme_write(const unsigned char *pbuf);
 /* defining atoi if stdlib is not there */
 #if  !defined(__STDLIB_H)
 #if  !defined(UFBL_TESTS) && \
-	!defined(UFBL_PROJ_MARGO) && \
-	!defined(UFBL_PROJ_ALISON) && \
-	!defined(UFBL_PROJ_LEELA) && \
-	!defined(UFBL_PROJ_SOPHIA) && \
-	!defined(UFBL_PROJ_CLARA) && \
-	!defined(UFBL_PROJ_NEPTUNE) && \
+	!defined(UFBL_PROJ_ABC) && \
+	!defined(UFBL_PROJ_ABC) && \
+	!defined(UFBL_PROJ_ABC) && \
+	!defined(UFBL_PROJ_ABC) && \
+	!defined(UFBL_PROJ_ABC) && \
+	!defined(UFBL_PROJ_ABC) && \
 	!defined(UFBL_PLAT_MTK_T31) && \
 	!defined(UFBL_PLAT_MTK_MT9022)
 
@@ -383,11 +383,11 @@ static void idme_log_failure(const char *msg)
 #endif
 {
 #if !defined(UFBL_TESTS) && \
-        !defined(UFBL_PROJ_MONTOYA) && \
+        !defined(UFBL_PROJ_ABC) && \
         !defined(SUPPORT_BOLT) && \
         !defined(UFBL_PLATFORM_IMX) && \
         !defined(UFBL_PLAT_AML_T950X4) && \
-        !defined(UFBL_PROJ_NEPTUNE)
+        !defined(UFBL_PROJ_ABC)
 #ifdef UFBL_FASTBOOT_RESPONSE
 	UFBL_FASTBOOT_FAIL(response,msg);
 #else
@@ -442,10 +442,10 @@ int do_idme(int flag, int argc, char * const argv[])
 				if(idme_get_var(argv[2], buf+len,
 					sizeof(buf)-len, pidme_data)) {
 #if !defined(UFBL_TESTS) && \
-	!defined(UFBL_PROJ_MONTOYA) && \
+	!defined(UFBL_PROJ_ABC) && \
 	!defined(SUPPORT_BOLT) && \
 	!defined(UFBL_PLATFORM_IMX) && \
-	!defined(UFBL_PROJ_NEPTUNE)
+	!defined(UFBL_PROJ_ABC)
 #ifdef UFBL_FASTBOOT_RESPONSE
 					UFBL_FASTBOOT_FAIL(response,buf);
 #else
@@ -457,10 +457,10 @@ int do_idme(int flag, int argc, char * const argv[])
 					return -1;
 				} else {
 #if !defined(UFBL_TESTS) && \
-	!defined(UFBL_PROJ_MONTOYA) && \
+	!defined(UFBL_PROJ_ABC) && \
 	!defined(SUPPORT_BOLT) && \
 	!defined(UFBL_PLATFORM_IMX) && \
-	!defined(UFBL_PROJ_NEPTUNE)
+	!defined(UFBL_PROJ_ABC)
 #ifdef UFBL_FASTBOOT_RESPONSE
 					UFBL_FASTBOOT_INFO(response,buf);
 #else
@@ -473,10 +473,10 @@ int do_idme(int flag, int argc, char * const argv[])
 				}
 			} else {
 #if !defined(UFBL_TESTS) && \
-	!defined(UFBL_PROJ_MONTOYA) && \
+	!defined(UFBL_PROJ_ABC) && \
 	!defined(SUPPORT_BOLT) && \
 	!defined(UFBL_PLATFORM_IMX) && \
-	!defined(UFBL_PROJ_NEPTUNE)
+	!defined(UFBL_PROJ_ABC)
 #ifdef UFBL_FASTBOOT_RESPONSE
 				UFBL_FASTBOOT_FAIL(response,buf);
 #else
@@ -619,28 +619,28 @@ int idme_get_var_external(const char *name, char *buf, unsigned int length)
 void cmd_idme(const char *arg, void *data, unsigned sz)
 {
 #if !defined(UFBL_TESTS) && \
-	!defined(UFBL_PROJ_MONTOYA) && \
+	!defined(UFBL_PROJ_ABC) && \
 	!defined(SUPPORT_BOLT) && \
 	!defined(UFBL_PLATFORM_IMX) && \
-	!defined(UFBL_PROJ_NEPTUNE)
+	!defined(UFBL_PROJ_ABC)
 	char response[64] = "idme done";
 #endif
 
 	if( 0 == fastboot_idme(arg)) {
 #if !defined(UFBL_TESTS) && \
-	!defined(UFBL_PROJ_MONTOYA) && \
+	!defined(UFBL_PROJ_ABC) && \
 	!defined(SUPPORT_BOLT) && \
 	!defined(UFBL_PLATFORM_IMX) && \
-	!defined(UFBL_PROJ_NEPTUNE)
+	!defined(UFBL_PROJ_ABC)
 		fastboot_info(response);
 		fastboot_okay("");
 #endif
 	} else {
 #if !defined(UFBL_TESTS) && \
-	!defined(UFBL_PROJ_MONTOYA) && \
+	!defined(UFBL_PROJ_ABC) && \
 	!defined(SUPPORT_BOLT) && \
 	!defined(UFBL_PLATFORM_IMX) && \
-	!defined(UFBL_PROJ_NEPTUNE)
+	!defined(UFBL_PROJ_ABC)
 		fastboot_fail("idme fail");
 #endif
 	}
@@ -654,7 +654,7 @@ int idme_initialize(void)
 
 	dprintf(CRITICAL, "idme_initialize\n");
 #if !defined(UFBL_TESTS) && \
-	!defined(UFBL_PROJ_NEPTUNE)
+	!defined(UFBL_PROJ_ABC)
 	if (unlikely(pidme_data != NULL)) {
 #else
 	if (pidme_data != NULL) {
@@ -668,7 +668,7 @@ int idme_initialize(void)
 	/* load the idme data from boot area
 	   Please make sure the MMC driver has been initialized before calling this function */
 #if !defined(UFBL_TESTS) && \
-	!defined(UFBL_PROJ_NEPTUNE)
+	!defined(UFBL_PROJ_ABC)
 	if (unlikely(idme_read(gidme_buff) != 0)) {
 #else
 	if (idme_read(gidme_buff) != 0) {
@@ -744,19 +744,19 @@ void idme_fastboot_register(void)
 {
 #if defined(UFBL_PROJ_MT8516) || \
 	defined(UFBL_PROJ_MT8183_ECHO) || \
-	defined(UFBL_PROJ_MANTIS) || \
-        defined(UFBL_PROJ_SHELDON) || \
-        defined(UFBL_PROJ_KARA) || \
-	defined(UFBL_PROJ_MAVERICK) || \
-	defined(UFBL_PROJ_ONYX) || \
-	defined(UFBL_PROJ_TRONA) || \
-	defined(UFBL_PROJ_PINNACLES)
+	defined(UFBL_PROJ_ABC) || \
+        defined(UFBL_PROJ_ABC) || \
+        defined(UFBL_PROJ_ABC) || \
+	defined(UFBL_PROJ_abc123) || \
+	defined(UFBL_PROJ_ABC) || \
+	defined(UFBL_PROJ_ABC) || \
+	defined(UFBL_PROJ_ABC)
 	fastboot_register("oem idme", cmd_idme, TRUE, FALSE);
 #elif !defined(UFBL_TESTS) && \
-	!defined(UFBL_PROJ_MONTOYA) && \
+	!defined(UFBL_PROJ_ABC) && \
 	!defined(SUPPORT_BOLT) && \
 	!defined(UFBL_PLATFORM_IMX) && \
-	!defined(UFBL_PROJ_NEPTUNE)
+	!defined(UFBL_PROJ_ABC)
 	fastboot_register("oem idme", cmd_idme, 0);
 #endif
 }

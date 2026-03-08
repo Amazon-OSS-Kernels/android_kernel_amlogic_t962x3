@@ -27,20 +27,20 @@
 #endif
 
 #if !defined(UFBL_TESTS) && \
-	!defined(UFBL_PROJ_NEPTUNE)
+	!defined(UFBL_PROJ_ABC)
 #include <debug.h>
-#else /* UFBL_TESTS UFBL_PROJ_NEPTUNE */
+#else /* UFBL_TESTS UFBL_PROJ_ABC */
 #include <stdio.h>
 #include <stdlib.h>
 #include "ufbl_debug.h"
-#endif /* !UFBL_TESTS && !UFBL_PROJ_NEPTUNE */
+#endif /* !UFBL_TESTS && !UFBL_PROJ_ABC */
 #endif /* SUPPORT_UBOOT || SUPPORT_BOLT */
 
 #include "idme.h"
 #include "idme_default_table.h"
 #if !defined(UFBL_TESTS) && \
 	!defined(UFBL_PLATFORM_IMX) && \
-	!defined(UFBL_PROJ_NEPTUNE)
+	!defined(UFBL_PROJ_ABC)
 #include "fastboot.h"
 #endif
 
@@ -421,10 +421,10 @@ int idme_print_var_v2p0(void *data)
 			UFBL_FASTBOOT_INFO(response,temp);
 #else
 #if !defined(UFBL_TESTS) && \
-	!defined(UFBL_PROJ_MONTOYA) && \
-	!defined(UFBL_PROJ_FRANK) && \
+	!defined(UFBL_PROJ_ABC) && \
+	!defined(UFBL_PROJ_ABC) && \
 	!defined (UFBL_PLATFORM_IMX) && \
-	!defined (UFBL_PROJ_NEPTUNE)
+	!defined (UFBL_PROJ_ABC)
 			fastboot_info(temp);
 #endif
 #endif
@@ -434,10 +434,10 @@ int idme_print_var_v2p0(void *data)
 			UFBL_FASTBOOT_INFO(response,temp);
 #else
 #if !defined(UFBL_TESTS) && \
-	!defined(UFBL_PROJ_MONTOYA) && \
-	!defined(UFBL_PROJ_FRANK) && \
+	!defined(UFBL_PROJ_ABC) && \
+	!defined(UFBL_PROJ_ABC) && \
 	!defined (UFBL_PLATFORM_IMX) && \
-	!defined (UFBL_PROJ_NEPTUNE)
+	!defined (UFBL_PROJ_ABC)
 			fastboot_info(temp);
 #endif
 #endif

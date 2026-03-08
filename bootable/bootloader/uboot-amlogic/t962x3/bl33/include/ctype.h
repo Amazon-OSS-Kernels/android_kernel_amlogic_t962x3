@@ -1,5 +1,5 @@
 /*
- * Ported from Baijiu
+ * Ported from ABC
  * The original source is believed to come from Linux Kernel
  *
  * SPDX-License-Identifier:     GPL-2.0+
