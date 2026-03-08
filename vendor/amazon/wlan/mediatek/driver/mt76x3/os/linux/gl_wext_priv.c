@@ -7692,12 +7692,6 @@ static int32_t priv_driver_get_txpower_info(IN struct net_device *prNetDev,
 
 	DBGLOG(REQ, LOUD, "command is %s\n", pcCommand);
 	wlanCfgParseArgument(pcCommand, &i4Argc, apcArgv);
-	if (i4Argc == 0)
-	{
-		DBGLOG(REQ, ERROR, "%s: invalid argc=0\n", __func__);
-		return -1;
-	}
-
 	DBGLOG(REQ, LOUD, "argc is %d, apcArgv[0] = %s\n\n", i4Argc, *apcArgv);
 
 	this_char = kalStrStr(*apcArgv, "=");
@@ -9518,11 +9512,6 @@ int priv_driver_set_fixed_rate(IN struct net_device *prNetDev,
 
 	DBGLOG(REQ, LOUD, "command is %s\n", pcCommand);
 	wlanCfgParseArgument(pcCommand, &i4Argc, apcArgv);
-	if (i4Argc == 0)
-	{
-		DBGLOG(REQ, ERROR, "%s: invalid argc=0\n", __func__);
-		return -1;
-	}
 	DBGLOG(REQ, LOUD, "argc is %d, apcArgv[0] = %s\n\n", i4Argc, *apcArgv);
 
 	this_char = kalStrStr(*apcArgv, "=");
@@ -10348,11 +10337,6 @@ int priv_driver_set_country(IN struct net_device *prNetDev,
 
 	DBGLOG(REQ, LOUD, "command is %s\n", pcCommand);
 	wlanCfgParseArgument(pcCommand, &i4Argc, apcArgv);
-	if (i4Argc < 2)
-	{
-		DBGLOG(REQ, WARN, "%s: argc is %d, need >=2\n", __func__, i4Argc);
-		return -1;
-	}
 	DBGLOG(REQ, LOUD, "argc is %i\n", i4Argc);
 
 	if (regd_is_single_sku_en()) {
@@ -11457,7 +11441,7 @@ priv_set_ap(IN struct net_device *prNetDev,
 			return -EFAULT;
 		}
 
-		if (copy_from_user(aucOidBuf,
+		if (copy_from_user(&pcExtra,
 			prIwReqData->data.pointer,
 			prIwReqData->data.length)) {
 			DBGLOG(REQ, INFO,
@@ -11470,7 +11454,7 @@ priv_set_ap(IN struct net_device *prNetDev,
 		//pcExtra[prIwReqData->data.length - 1] = 0;
 	}
 
-	DBGLOG(REQ, INFO, "%s aucOidBuf %s\n", __func__, aucOidBuf);
+	DBGLOG(REQ, INFO, "%s pcExtra %s\n", __func__, pcExtra);
 
 	if (!pcExtra)
 		goto exit;
@@ -11481,28 +11465,28 @@ priv_set_ap(IN struct net_device *prNetDev,
 	i4BytesWritten =
 		priv_driver_set_ap_get_sta_list(
 		prNetDev,
-		aucOidBuf,
+		pcExtra,
 		i4TotalFixLen);
 		break;
 	case IOC_AP_SET_MAC_FLTR:
 	i4BytesWritten =
 		priv_driver_set_ap_set_mac_acl(
 		prNetDev,
-		aucOidBuf,
+		pcExtra,
 		i4TotalFixLen);
 	  break;
 	case IOC_AP_SET_CFG:
 	i4BytesWritten =
 		priv_driver_set_ap_set_cfg(
 		prNetDev,
-		aucOidBuf,
+		pcExtra,
 		i4TotalFixLen);
 	  break;
 	case IOC_AP_STA_DISASSOC:
 	i4BytesWritten =
 		priv_driver_set_ap_sta_disassoc(
 		prNetDev,
-		aucOidBuf,
+		pcExtra,
 		i4TotalFixLen);
 	  break;
 	default:
@@ -12359,12 +12343,6 @@ static int priv_driver_set_suspend_cmd(IN struct net_device *prNetDev,
 
 	DBGLOG(REQ, LOUD, "command is %s\n", pcCommand);
 	wlanCfgParseArgument(pcCommand, &i4Argc, apcArgv);
-
-	if (i4Argc < 2)
-	{
-		DBGLOG(REQ, WARN, "%s: argc is %d, need >=2\n", __func__, i4Argc);
-		return -1;
-	}
 	DBGLOG(REQ, LOUD, "argc is %i\n", i4Argc);
 
 	u4Ret = kalkStrtou32(apcArgv[1], 0, &Enable);
@@ -12390,12 +12368,6 @@ static int priv_driver_set_mdns_offload_enable(IN struct net_device *prNetDev,
 
 	DBGLOG(REQ, LOUD, "command is %s\n", pcCommand);
 	wlanCfgParseArgument(pcCommand, &i4Argc, apcArgv);
-
-	if (i4Argc < 2)
-	{
-		DBGLOG(REQ, WARN, "%s: argc is %d, need >=2\n", __func__, i4Argc);
-		return -1;
-	}
 	DBGLOG(REQ, LOUD, "argc is %i\n", i4Argc);
 
 	u4Ret = kalkStrtou8(apcArgv[1], 0, &ucEnable);
@@ -17857,7 +17829,7 @@ int android_private_support_driver_cmd(IN struct net_device *prNetDev,
 	if (copy_from_user(&priv_cmd, prReq->ifr_data, sizeof(priv_cmd)))
 		return -EFAULT;
 	/* total_len is controlled by the user. need check length */
-	if (priv_cmd.total_len <= 0 || priv_cmd.total_len > PRIV_CMD_SIZE)
+	if (priv_cmd.total_len <= 0)
 		return -EINVAL;
 
 	command = kzalloc(priv_cmd.total_len, GFP_KERNEL);
@@ -17866,7 +17838,7 @@ int android_private_support_driver_cmd(IN struct net_device *prNetDev,
 		return -ENOMEM;
 	}
 
-	if (kalMemCopy(command, priv_cmd.buf, priv_cmd.total_len)) {
+	if (copy_from_user(command, priv_cmd.buf, priv_cmd.total_len)) {
 		ret = -EFAULT;
 		goto FREE;
 	}
@@ -17891,7 +17863,7 @@ int android_private_support_driver_cmd(IN struct net_device *prNetDev,
 
 		priv_cmd.used_len = bytes_written;
 
-		if (kalMemCopy(priv_cmd.buf, command, bytes_written))
+		if (copy_to_user(priv_cmd.buf, command, bytes_written))
 			ret = -EFAULT;
 	} else
 		ret = bytes_written;

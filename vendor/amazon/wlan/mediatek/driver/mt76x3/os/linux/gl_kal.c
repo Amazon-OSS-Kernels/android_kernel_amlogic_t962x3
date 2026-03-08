@@ -1391,7 +1391,7 @@ kalIndicateStatusAndComplete(IN struct GLUE_INFO
 			CFG80211_BSS_FTYPE_PRESP,
 			arBssid,
 			0, /* TSF */
-			prBssDesc->u2CapInfo,
+			WLAN_CAPABILITY_ESS,
 			prBssDesc->u2BeaconInterval, /* beacon interval */
 			prBssDesc->aucIEBuf, /* IE */
 			prBssDesc->u2IELength, /* IE Length */
@@ -1403,7 +1403,7 @@ kalIndicateStatusAndComplete(IN struct GLUE_INFO
 			prChannel,
 			arBssid,
 			0, /* TSF */
-			prBssDesc->u2CapInfo,
+			WLAN_CAPABILITY_ESS,
 			prBssDesc->u2BeaconInterval, /* beacon interval */
 			prBssDesc->aucIEBuf, /* IE */
 			prBssDesc->u2IELength, /* IE Length */
@@ -1721,8 +1721,7 @@ kalIndicateStatusAndComplete(IN struct GLUE_INFO
 					NULL,
 					0,
 					prConnSettings->bss,
-					0,
-					FALSE);
+					0);
 
 #else
 	#if (KERNEL_VERSION(4, 4, 41) <= CFG80211_VERSION_CODE)
@@ -1796,18 +1795,8 @@ kalIndicateStatusAndComplete(IN struct GLUE_INFO
 		if (prConnSettings->bss) {
 #if CFG_WDEV_LOCK_THREAD_SUPPORT
 			uint8_t *pFrameBuf = NULL;
-			uint8_t fgIsInterruptContext = FALSE;
 
-			if (in_interrupt()) {
-				pFrameBuf = kalMemAlloc(u4BufLen, PHY_MEM_TYPE);
-				fgIsInterruptContext = TRUE;
-			} else {
-				pFrameBuf = kalMemAlloc(u4BufLen, VIR_MEM_TYPE);
-				fgIsInterruptContext = FALSE;
-			}
-
-			if (!pFrameBuf)
-				DBGLOG(INIT, ERROR, "Alloc buffer for frame failed\n");
+			pFrameBuf = kalMemAlloc(u4BufLen, VIR_MEM_TYPE);
 
 			if (pFrameBuf) {
 				kalMemCopy((void *)pFrameBuf,
@@ -1820,8 +1809,7 @@ kalIndicateStatusAndComplete(IN struct GLUE_INFO
 						pFrameBuf,
 						u4BufLen,
 						prConnSettings->bss,
-						0,
-						fgIsInterruptContext);
+						0);
 			}
 			else {
 				/* 20210505 frog:
@@ -1834,8 +1822,7 @@ kalIndicateStatusAndComplete(IN struct GLUE_INFO
 						NULL,
 						0,
 						prConnSettings->bss,
-						0,
-						fgIsInterruptContext);
+						0);
 			}
 #else
 #if (KERNEL_VERSION(5, 1, 0) <= CFG80211_VERSION_CODE)
@@ -5833,8 +5820,7 @@ void kalWDevLockThread(IN struct GLUE_INFO* prGlueInfo,
 	IN uint8_t *pFrameBuf,
 	IN size_t frameLen,
 	IN struct cfg80211_bss *pBss,
-	IN int32_t uapsd_queues,
-	IN uint8_t fgIsInterruptContext)
+	IN int32_t uapsd_queues)
 {
 	struct PARAM_WDEV_LOCK_THREAD* pParamWDevLock = NULL;
 	GLUE_SPIN_LOCK_DECLARATION();
@@ -5843,20 +5829,9 @@ void kalWDevLockThread(IN struct GLUE_INFO* prGlueInfo,
 
 	DBGLOG(REQ, INFO, "kalWDevLockThread\n");
 
-	if (in_interrupt() && fgIsInterruptContext) {
-		DBGLOG(REQ, STATE,
-			"pParamWDevLock is allocated as PHY_MEM_TYPE in intr context\n");
-		pParamWDevLock =
-			(struct PARAM_WDEV_LOCK_THREAD*)kalMemAlloc(
-					sizeof(struct PARAM_WDEV_LOCK_THREAD),
-					PHY_MEM_TYPE);
-	} else {
-		pParamWDevLock =
-			(struct PARAM_WDEV_LOCK_THREAD*)kalMemAlloc(
-					sizeof(struct PARAM_WDEV_LOCK_THREAD),
-					VIR_MEM_TYPE);
-	}
-
+	pParamWDevLock = (struct PARAM_WDEV_LOCK_THREAD*) kalMemAlloc(
+							sizeof(struct PARAM_WDEV_LOCK_THREAD),
+							VIR_MEM_TYPE);
 	DBGLOG(REQ, TRACE, "Alloc pParamWDevLock 0x%x\n", pParamWDevLock);
 
 	if (pParamWDevLock == NULL) {
@@ -5868,7 +5843,6 @@ void kalWDevLockThread(IN struct GLUE_INFO* prGlueInfo,
 	pParamWDevLock->fn = fn;
 	pParamWDevLock->pFrameBuf = pFrameBuf;
 	pParamWDevLock->frameLen = frameLen;
-	pParamWDevLock->fgIsInterruptContext = fgIsInterruptContext;
 	if (pBss) {
 		cfg80211_ref_bss(priv_to_wiphy(prGlueInfo),
 						pBss);
@@ -6320,13 +6294,11 @@ static ssize_t kalMetWriteProcfs(struct file *file,
 	int u8MetProfEnable;
 
 	IN struct GLUE_INFO *prGlueInfo;
+	ssize_t result;
 
 	u4CopySize = (count < (sizeof(acBuf) - 1)) ? count :
 		     (sizeof(acBuf) - 1);
-	if (copy_from_user(acBuf, buffer, u4CopySize)) {
-		DBGLOG(INIT, ERROR, "error of copy from user\n");
-		return -EFAULT;
-	}
+	result = copy_from_user(acBuf, buffer, u4CopySize);
 	acBuf[u4CopySize] = '\0';
 
 	if (sscanf(acBuf, " %d %d", &u8MetProfEnable,
@@ -6348,15 +6320,13 @@ static ssize_t kalMetCtrlWriteProcfs(struct file *file,
 	char acBuf[128 + 1];	/* + 1 for "\0" */
 	uint32_t u4CopySize;
 	int u8MetProfEnable;
+	ssize_t result;
 
 	IN struct GLUE_INFO *prGlueInfo;
 
 	u4CopySize = (count < (sizeof(acBuf) - 1)) ? count :
 		     (sizeof(acBuf) - 1);
-	if (copy_from_user(acBuf, buffer, u4CopySize)) {
-		DBGLOG(INIT, ERROR, "error of copy from user\n");
-		return -EFAULT;
-	}
+	result = copy_from_user(acBuf, buffer, u4CopySize);
 	acBuf[u4CopySize] = '\0';
 
 	if (sscanf(acBuf, " %d", &u8MetProfEnable) == 1)
@@ -6375,15 +6345,13 @@ static ssize_t kalMetPortWriteProcfs(struct file *file,
 	char acBuf[128 + 1];	/* + 1 for "\0" */
 	uint32_t u4CopySize;
 	int u16MetUdpPort;
+	ssize_t result;
 
 	IN struct GLUE_INFO *prGlueInfo;
 
 	u4CopySize = (count < (sizeof(acBuf) - 1)) ? count :
 		     (sizeof(acBuf) - 1);
-	if (copy_from_user(acBuf, buffer, u4CopySize)) {
-		DBGLOG(INIT, ERROR, "error of copy from user\n");
-		return -EFAULT;
-	}
+	result = copy_from_user(acBuf, buffer, u4CopySize);
 	acBuf[u4CopySize] = '\0';
 
 	if (sscanf(acBuf, " %d", &u16MetUdpPort) == 1)

@@ -4538,16 +4538,9 @@ wext_indicate_wext_event(IN struct GLUE_INFO *prGlueInfo,
 		/* translate binary string to hex string, requirement of
 		 * IWEVCUSTOM
 		 */
-
-		if((pucDesiredIE[1] + 2) * 2 > sizeof(aucExtraInfoBuf) - 17) {
-			DBGLOG(INIT, INFO, "size of pucDesiredIE[1] exceeds buffer size\n");
-			goto skip_indicate_event;
-		}
-
 		for (i = 0; i < pucDesiredIE[1] + 2; ++i)
-			pucExtraInfo += snprintf(pucExtraInfo, sizeof(unsigned char) + 2, "%02x",
+			pucExtraInfo += sprintf(pucExtraInfo, "%02x",
 						pucDesiredIE[i]);
-
 		pucExtraInfo = aucExtraInfoBuf;
 		wrqu.data.length = 17 + (pucDesiredIE[1] + 2) * 2;
 #else

@@ -1257,7 +1257,6 @@ uint32_t assocSendDisAssocFrame(IN struct ADAPTER *prAdapter,
 	struct BSS_INFO *prBssInfo = NULL;
 #if CFG_WDEV_LOCK_THREAD_SUPPORT
 	uint8_t* pFrameBuf;
-	uint8_t fgIsInterruptContext = FALSE;
 #endif
 #endif
 	/* UINT_32 u4Status = WLAN_STATUS_SUCCESS; */
@@ -1355,19 +1354,7 @@ uint32_t assocSendDisAssocFrame(IN struct ADAPTER *prAdapter,
 	*/
 	if ((prStaRec) && (IS_STA_IN_AIS(prStaRec))) {
 #if CFG_WDEV_LOCK_THREAD_SUPPORT
-	if (in_interrupt()) {
-		pFrameBuf = kalMemAlloc(prMsduInfo->u2FrameLength, PHY_MEM_TYPE);
-		fgIsInterruptContext = TRUE;
-	} else {
-		pFrameBuf = kalMemAlloc(prMsduInfo->u2FrameLength, VIR_MEM_TYPE);
-		fgIsInterruptContext = FALSE;
-	}
-
-	if (!pFrameBuf) {
-		DBGLOG(SAA, ERROR, "Alloc buffer for frame failed\n");
-		cnmMgtPktFree(prAdapter, prMsduInfo);
-		return WLAN_STATUS_RESOURCES;
-	}
+	pFrameBuf = kalMemAlloc(prMsduInfo->u2FrameLength, VIR_MEM_TYPE);
 
 	kalMemCopy((void *) pFrameBuf,
 				(void *) prDisassocFrame,
@@ -1379,8 +1366,7 @@ uint32_t assocSendDisAssocFrame(IN struct ADAPTER *prAdapter,
 						pFrameBuf,
 						prMsduInfo->u2FrameLength,
 						NULL,
-						0,
-						fgIsInterruptContext);
+						0);
 #else
 	cfg80211_tx_mlme_mgmt(prAdapter->prGlueInfo->prDevHandler,
 		(uint8_t *)prDisassocFrame,
@@ -1394,20 +1380,7 @@ uint32_t assocSendDisAssocFrame(IN struct ADAPTER *prAdapter,
 		if(prBssInfo) {
 			ucRoleIdx = (uint8_t)prBssInfo->u4PrivateData;
 #if CFG_WDEV_LOCK_THREAD_SUPPORT
-			if (in_interrupt()) {
-				pFrameBuf = kalMemAlloc(prMsduInfo->u2FrameLength, PHY_MEM_TYPE);
-				fgIsInterruptContext = TRUE;
-			} else {
-				pFrameBuf = kalMemAlloc(prMsduInfo->u2FrameLength, VIR_MEM_TYPE);
-				fgIsInterruptContext = FALSE;
-			}
-
-			if (!pFrameBuf) {
-				DBGLOG(SAA, ERROR, "Alloc buffer for frame failed\n");
-				cnmMgtPktFree(prAdapter, prMsduInfo);
-				return WLAN_STATUS_RESOURCES;
-			}
-
+			pFrameBuf = kalMemAlloc(prMsduInfo->u2FrameLength, VIR_MEM_TYPE);
 			kalMemCopy((void *) pFrameBuf,
 						(void *) prDisassocFrame,
 						prMsduInfo->u2FrameLength);
@@ -1418,8 +1391,7 @@ uint32_t assocSendDisAssocFrame(IN struct ADAPTER *prAdapter,
 								pFrameBuf,
 								prMsduInfo->u2FrameLength,
 								NULL,
-								0,
-								fgIsInterruptContext);
+								0);
 #else
 			cfg80211_tx_mlme_mgmt(
 				prAdapter->prGlueInfo->prP2PInfo[ucRoleIdx]
@@ -1641,15 +1613,7 @@ uint32_t assocProcessRxAssocReqFrame(IN struct ADAPTER *prAdapter,
 				prIeSupportedRate = SUP_RATES_IE(pucIE);
 
 			break;
-		case ELEM_ID_PWR_CAP:
-			if (IE_LEN(pucIE) != ELEM_MAX_LEN_POWER_CAP)
-				return WLAN_STATUS_FAILURE;
-			break;
-		case ELEM_ID_SUP_CHS:
-			if ((IE_LEN(pucIE) > ELEM_MAX_LEN_SUPPORTED_CHANNELS)
-			     || (IE_LEN(pucIE) & 0x01))
-				return WLAN_STATUS_FAILURE;
-			break;
+
 		case ELEM_ID_EXTENDED_SUP_RATES:
 			if (!prIeExtSupportedRate)
 				prIeExtSupportedRate = EXT_SUP_RATES_IE(pucIE);
@@ -1668,10 +1632,6 @@ uint32_t assocProcessRxAssocReqFrame(IN struct ADAPTER *prAdapter,
 				rsnParserCheckForRSNCCMPPSK(prAdapter, prIeRsn,
 							    prStaRec,
 							    &u2StatusCode);
-				if (u2StatusCode ==
-				    STATUS_CODE_INVALID_INFO_ELEMENT) {
-					return WLAN_STATUS_FAILURE;
-				}
 				if (u2StatusCode != STATUS_CODE_SUCCESSFUL) {
 					*pu2StatusCode = u2StatusCode;
 					return WLAN_STATUS_SUCCESS;
