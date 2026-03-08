@@ -98,6 +98,7 @@
 /* #define MAX_IOREQ_NUM   10 */
 struct semaphore g_halt_sem;
 int g_u4HaltFlag;
+atomic_t g_wlanRemoving;
 
 #ifdef CFG_SUPPORT_EMPTY_MAC
 uint8_t empty_mac[6] = {0};
@@ -1360,7 +1361,7 @@ void wlanSchedWDevLockWorkQueue(struct work_struct *work)
 	struct PARAM_WDEV_LOCK_THREAD* prParamWDevLock = NULL;
 	struct QUE rTempQue;
 	struct QUE* prTempQue = &rTempQue;
-#if (KERNEL_VERSION(5, 15, 0) <= CFG80211_VERSION_CODE)
+#if (KERNEL_VERSION(6, 0, 0) <= CFG80211_VERSION_CODE)
 	struct cfg80211_assoc_failure assoc_failure_data = {0};
 	struct cfg80211_rx_assoc_resp rx_assoc_resp_data = {0};
 #endif
@@ -1398,7 +1399,7 @@ void wlanSchedWDevLockWorkQueue(struct work_struct *work)
 			}
 
 			kalAcquireWDevMutex(prParamWDevLock->pDev);
-#if (KERNEL_VERSION(5, 15, 0) <= CFG80211_VERSION_CODE)
+#if (KERNEL_VERSION(6, 0, 0) <= CFG80211_VERSION_CODE)
 			assoc_failure_data.ap_mld_addr = NULL;
 			assoc_failure_data.bss[0] = prParamWDevLock->pBss;
 #endif
@@ -1410,7 +1411,7 @@ void wlanSchedWDevLockWorkQueue(struct work_struct *work)
 											prParamWDevLock->pFrameBuf,
 											prParamWDevLock->frameLen,
 											prParamWDevLock->uapsd_queues);
-#if (KERNEL_VERSION(5, 15, 0) <= CFG80211_VERSION_CODE)
+#if (KERNEL_VERSION(6, 0, 0) <= CFG80211_VERSION_CODE)
 					rx_assoc_resp_data.buf = (const u8 *)prParamWDevLock->pFrameBuf;
 					rx_assoc_resp_data.len = prParamWDevLock->frameLen;
 					rx_assoc_resp_data.uapsd_queues = 0;
@@ -1471,7 +1472,7 @@ void wlanSchedWDevLockWorkQueue(struct work_struct *work)
 											);
 					break;
 				case CFG80211_ABANDON_ASSOC:
-#if (KERNEL_VERSION(5, 15, 0) <= CFG80211_VERSION_CODE)
+#if (KERNEL_VERSION(6, 0, 0) <= CFG80211_VERSION_CODE)
 					assoc_failure_data.timeout = false;
 					cfg80211_assoc_failure(prParamWDevLock->pDev,
 						&assoc_failure_data);
@@ -1484,7 +1485,7 @@ void wlanSchedWDevLockWorkQueue(struct work_struct *work)
 					 */
 					break;
 				case CFG80211_ASSOC_TIMEOUT:
-#if (KERNEL_VERSION(5, 15, 0) <= CFG80211_VERSION_CODE)
+#if (KERNEL_VERSION(6, 0, 0) <= CFG80211_VERSION_CODE)
 					assoc_failure_data.timeout = true;
 					cfg80211_assoc_failure(prParamWDevLock->pDev,
 						&assoc_failure_data);
@@ -2070,7 +2071,7 @@ static int32_t wlanNetRegister(struct wireless_dev *prWdev)
 		prWdev->netdev->features |= NETIF_F_GRO;
 		prWdev->netdev->hw_features |= NETIF_F_GRO;
 #endif /* CFG_GRO_SUPPORT */
-#if KERNEL_VERSION(6, 1, 0) <= CFG80211_VERSION_CODE
+#if KERNEL_VERSION(6, 1, 0) <= LINUX_VERSION_CODE
 		netif_napi_add(prWdev->netdev, &prGlueInfo->rNapi,
 			kalRxNapiPoll);
 #else
@@ -4236,6 +4237,11 @@ static void wlanRemove(void)
 	static u_int8_t waitForResetCompInit = 0;
 
 	DBGLOG(INIT, STATE, "Remove wlan!\n");
+	if (atomic_read(&g_wlanRemoving)) {
+		DBGLOG(INIT, ERROR, "wlanRemove in process\n");
+		return;
+	}
+	atomic_set(&g_wlanRemoving, 1);
 
 	prWaitForResetComp = &rWaitForResetComp;
 
@@ -4262,7 +4268,7 @@ static void wlanRemove(void)
 #if CFG_FTV_abc123_135_PATCH
 		fgIsResetting = FALSE;
 #endif
-		return;
+		goto WLAN_REMOVE_RETURN;
 	}
 #if (CFG_ENABLE_WIFI_DIRECT && CFG_MTK_ANDROID_WMT)
 	register_set_p2p_mode_handler(NULL);
@@ -4276,7 +4282,7 @@ static void wlanRemove(void)
 	ASSERT(prDev);
 	if (prDev == NULL) {
 		DBGLOG(INIT, ERROR, "prDev is NULL\n");
-		return;
+		goto WLAN_REMOVE_RETURN;
 	}
 
 	prGlueInfo = *((struct GLUE_INFO **) netdev_priv(prDev));
@@ -4284,7 +4290,7 @@ static void wlanRemove(void)
 	if (prGlueInfo == NULL) {
 		DBGLOG(INIT, STATE, "prGlueInfo is NULL\n");
 		free_netdev(prDev);
-		return;
+		goto WLAN_REMOVE_RETURN;
 	}
 
 	prAdapter = prGlueInfo->prAdapter;
@@ -4500,7 +4506,9 @@ static void wlanRemove(void)
 	wcn_export_platform_bridge_unregister();
 #endif
 
+WLAN_REMOVE_RETURN:
 	DBGLOG(INIT, STATE, "end\n");
+	atomic_set(&g_wlanRemoving, 0);
 
 }				/* end of wlanRemove() */
 
@@ -4520,6 +4528,7 @@ static int initWlan(void)
 	struct GLUE_INFO *prGlueInfo = NULL;
 
 	DBGLOG(INIT, INFO, "initWlan\n");
+	atomic_set(&g_wlanRemoving, 0);
 
 #ifdef CFG_DRIVER_INF_NAME_CHANGE
 

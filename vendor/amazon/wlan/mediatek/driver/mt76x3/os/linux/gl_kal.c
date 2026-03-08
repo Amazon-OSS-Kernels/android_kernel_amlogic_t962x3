@@ -1253,7 +1253,7 @@ kalIndicateStatusAndComplete(IN struct GLUE_INFO
 			     IN uint32_t u4BufLen, IN uint8_t ucBssIndex)
 {
 
-	uint32_t bufLen;
+	uint32_t bufLen = 0;
 	struct PARAM_STATUS_INDICATION *pStatus;
 	struct PARAM_AUTH_EVENT *pAuth;
 	struct PARAM_PMKID_CANDIDATE_LIST *pPmkid;
@@ -1284,6 +1284,10 @@ kalIndicateStatusAndComplete(IN struct GLUE_INFO
 	pPmkid = (struct PARAM_PMKID_CANDIDATE_LIST *)(pStatus + 1);
 
 	prDevHandler = kalGetNetDev(prGlueInfo, ucBssIndex);
+	if (!prDevHandler) {
+		DBGLOG(INIT, ERROR, "kalGetNetDev fail %d\n", ucBssIndex);
+		return;
+	}
 
 	switch (eStatus) {
 	case WLAN_STATUS_ROAM_OUT_FIND_BEST:
@@ -1460,7 +1464,7 @@ kalIndicateStatusAndComplete(IN struct GLUE_INFO
 			/* CFG80211 Indication */
 			if (eStatus == WLAN_STATUS_ROAM_OUT_FIND_BEST) {
 #if KERNEL_VERSION(4, 12, 0) <= CFG80211_VERSION_CODE
-#if KERNEL_VERSION(5, 15, 0) <= CFG80211_VERSION_CODE
+#if KERNEL_VERSION(6, 0, 0) <= CFG80211_VERSION_CODE
 				rRoamInfo.links[0].bss = bss;
 #else
 				rRoamInfo.bss = bss;
@@ -4265,7 +4269,6 @@ static int idme_get_mac_addr(unsigned char *mac_addr, size_t addr_len)
 	unsigned char buf[IFHWADDRLEN * 2 + 1] = {""}, str[3] = {""};
 	int i, mac[IFHWADDRLEN];
 	struct file *f;
-	size_t len;
 
 	if (!mac_addr || addr_len < IFHWADDRLEN) {
 		DBGLOG(INIT, ERROR, "invalid mac_addr ptr or buf\n");
@@ -4288,8 +4291,7 @@ static int idme_get_mac_addr(unsigned char *mac_addr, size_t addr_len)
 		str[1] = buf[i * 2 + 1];
 		if (!isxdigit(str[0]) || !isxdigit(str[1]))
 			goto bailout;
-		len = sscanf(str, "%02x", &mac[i]);
-		if (len != 1)
+		if (kstrtoint(str, 16, &mac[i]))
 			goto bailout;
 	}
 	for (i = 0; i < IFHWADDRLEN; i++)
@@ -6411,7 +6413,7 @@ static ssize_t kalMetPortWriteProcfs(struct file *file,
 {
 	char acBuf[128 + 1];	/* + 1 for "\0" */
 	uint32_t u4CopySize;
-	int u16MetUdpPort;
+	int u16MetUdpPort = 0;
 
 	IN struct GLUE_INFO *prGlueInfo;
 
@@ -7726,6 +7728,10 @@ void kalFreeTxMsduWorker(struct work_struct *work)
 
 	while (QUEUE_IS_NOT_EMPTY(prTmpQue)) {
 		QUEUE_REMOVE_HEAD(prTmpQue, prMsduInfo, struct MSDU_INFO *);
+		if (!prMsduInfo) {
+			DBGLOG(REQ, WARN, "prMsduInfo is NULL\n");
+			break;
+		}
 
 		wlanTxProfilingTagMsdu(prAdapter, prMsduInfo,
 				       TX_PROF_TAG_DRV_FREE_MSDU);
@@ -8490,7 +8496,7 @@ void kalIndicateChannelSwitch(IN struct GLUE_INFO *prGlueInfo,
 				IN enum ENUM_CHNL_EXT eSco,
 				IN uint8_t ucChannelNum)
 {
-	struct cfg80211_chan_def chandef;
+	struct cfg80211_chan_def chandef = {0};
 	struct ieee80211_channel *prChannel = NULL;
 	enum nl80211_channel_type rChannelType;
 
@@ -8534,10 +8540,10 @@ void kalIndicateChannelSwitch(IN struct GLUE_INFO *prGlueInfo,
 
 	cfg80211_chandef_create(&chandef, prChannel, rChannelType);
 	cfg80211_ch_switch_notify(prGlueInfo->prDevHandler, &chandef
-#if KERNEL_VERSION(5, 15, 0) <= CFG80211_VERSION_CODE
+#if KERNEL_VERSION(5, 19, 2) <= CFG80211_VERSION_CODE
 		, 0
 #endif
-#if KERNEL_VERSION(6, 1, 25) <= CFG80211_VERSION_CODE
+#if KERNEL_VERSION(6, 3, 0) <= CFG80211_VERSION_CODE
 		, 0
 #endif
 		);
@@ -8979,20 +8985,24 @@ void kal_sched_set(struct task_struct *p, int policy,
 	* TODO:
 	* kernel prefer modify "current" only, add sanity here?
 	*/
+
+#if KERNEL_VERSION(5, 14, 0) <= LINUX_VERSION_CODE
 	struct sched_attr attr = {
 		.sched_policy = policy,
 		.sched_priority = param->sched_priority,
 		.sched_nice = nice,
 	};
 
+	sched_setattr_nocheck(p, &attr);
+#else
 	if (policy == SCHED_NORMAL)
 		sched_set_normal(p, nice);
 	else if (policy == SCHED_FIFO)
 		sched_set_fifo(p);
 	else
 		sched_set_fifo_low(p);
+#endif /* KERNEL_VERSION(5, 14, 0) <= LINUX_VERSION_CODE */
 
-	sched_setattr_nocheck(p, &attr);
 #else
 	sched_setscheduler(p, policy, param);
 #endif

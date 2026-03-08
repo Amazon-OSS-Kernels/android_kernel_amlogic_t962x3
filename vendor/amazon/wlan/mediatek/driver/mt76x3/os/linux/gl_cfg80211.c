@@ -526,8 +526,8 @@ int mtk_cfg80211_get_station(struct wiphy *wiphy,
 	struct GLUE_INFO *prGlueInfo = NULL;
 	uint32_t rStatus;
 	uint8_t arBssid[PARAM_MAC_ADDR_LEN];
-	uint32_t u4BufLen, u4Rate;
-	int32_t i4Rssi;
+	uint32_t u4BufLen, u4Rate = 0;
+	int32_t i4Rssi = 0;
 	struct PARAM_GET_STA_STATISTICS rQueryStaStatistics;
 	uint32_t u4TotalError;
 	struct net_device_stats *prDevStats;
@@ -3783,12 +3783,12 @@ static int mtk_wlan_cfg_testmode_cmd(struct wiphy *wiphy,
 	case TESTMODE_CMD_ID_SW_CMD:	/* SW cmd */
 		i4Status = mtk_cfg80211_testmode_sw_cmd(wiphy, data, len);
 		break;
-	case TESTMODE_CMD_ID_WAPI:	/* WAPI */
 #if CFG_SUPPORT_WAPI
+	case TESTMODE_CMD_ID_WAPI:	/* WAPI */
 		i4Status = mtk_cfg80211_testmode_set_key_ext(wiphy, data,
 				len);
-#endif
 		break;
+#endif /* CFG_SUPPORT_WAPI */
 	case 0x10:
 		i4Status = mtk_cfg80211_testmode_get_sta_statistics(wiphy,
 				data, len, prGlueInfo);
@@ -4190,8 +4190,6 @@ struct P2P_CONNECTION_REQ_INFO *prConnReqInfo =
 		prGlueInfo->rWpaInfo.u4Mfp = IW_AUTH_MFP_DISABLED;
 		prGlueInfo->rWpaInfo.ucRSNMfpCap = RSN_AUTH_MFP_DISABLED;
 #endif
-		prGlueInfo->rWpaInfo.ucRsneLen = 0;
-
 		/* 2.Fill WPA version */
 		if (req->crypto.wpa_versions & NL80211_WPA_VERSION_1)
 			prGlueInfo->rWpaInfo.u4WpaVersion =
@@ -4563,8 +4561,6 @@ struct P2P_CONNECTION_REQ_INFO *prConnReqInfo =
 					prGlueInfo->rWpaInfo.ucRSNMfpCap =
 							RSN_AUTH_MFP_DISABLED;
 #endif
-			prGlueInfo->rWpaInfo.ucRsneLen = rRsnInfo.ucRsneLen;
-
 			/* Fill RSNE PMKID Count and List */
 			prConnSettings->rRsnInfo.u2PmkidCnt =
 				rRsnInfo.u2PmkidCnt;
@@ -4880,7 +4876,7 @@ mtk_cfg80211_change_station(struct wiphy *wiphy,
 	prAdapter = prGlueInfo->prAdapter;
 	prAisBssInfo = prAdapter->prAisBssInfo;
 
-#if KERNEL_VERSION(5, 15, 0) <= CFG80211_VERSION_CODE
+#if KERNEL_VERSION(6, 0, 0) <= CFG80211_VERSION_CODE
 	if (params == NULL)
 		return 0;
 	else if (params->link_sta_params.supported_rates == NULL)
@@ -4896,7 +4892,7 @@ mtk_cfg80211_change_station(struct wiphy *wiphy,
 	kalMemZero(&rCmdUpdate, sizeof(rCmdUpdate));
 	kalMemCopy(rCmdUpdate.aucPeerMac, mac, 6);
 
-#if KERNEL_VERSION(5, 15, 0) <= CFG80211_VERSION_CODE
+#if KERNEL_VERSION(6, 0, 0) <= CFG80211_VERSION_CODE
 	if (params->link_sta_params.supported_rates != NULL) {
 
 		u4Temp = params->link_sta_params.supported_rates_len;
@@ -4937,7 +4933,7 @@ mtk_cfg80211_change_station(struct wiphy *wiphy,
 		rCmdUpdate.u2ExtCapLen = u4Temp;
 	}
 
-#if KERNEL_VERSION(5, 15, 0) <= CFG80211_VERSION_CODE
+#if KERNEL_VERSION(6, 0, 0) <= CFG80211_VERSION_CODE
 	if (params->link_sta_params.ht_capa != NULL) {
 
 		rCmdUpdate.rHtCap.u2CapInfo =
@@ -5783,6 +5779,8 @@ mtk_apply_custom_regulatory(IN struct wiphy *pWiphy,
 	wiphy_apply_custom_regulatory(pWiphy, pRegdom);
 }
 
+extern atomic_t g_wlanRemoving;
+
 void
 mtk_reg_notify(IN struct wiphy *pWiphy,
 	       IN struct regulatory_request *pRequest)
@@ -5966,6 +5964,12 @@ DOMAIN_SEND_CMD:
 	if (!prGlueInfo) {
 		DBGLOG(RLM, ERROR, "prGlueInfo is NULL!\n");
 		return; /*interface is not up yet.*/
+	}
+
+	if(atomic_read(&g_wlanRemoving)) {
+		DBGLOG(RLM, ERROR,
+                       "wlanRemove in proccess, skip mtk_reg_notify()!\n");
+		return;
 	}
 
 	prAdapter = prGlueInfo->prAdapter;
@@ -6643,7 +6647,7 @@ int mtk_cfg_change_iface(struct wiphy *wiphy,
 
 int mtk_cfg_add_key(struct wiphy *wiphy,
 		    struct net_device *ndev,
-#if KERNEL_VERSION(5, 15, 0) <= CFG80211_VERSION_CODE
+#if KERNEL_VERSION(6, 1, 0) <= CFG80211_VERSION_CODE
 		    int link_id,
 #endif
 		    u8 key_index, bool pairwise, const u8 *mac_addr,
@@ -6671,7 +6675,7 @@ int mtk_cfg_add_key(struct wiphy *wiphy,
 
 int mtk_cfg_get_key(struct wiphy *wiphy,
 		    struct net_device *ndev,
-#if KERNEL_VERSION(5, 15, 0) <= CFG80211_VERSION_CODE
+#if KERNEL_VERSION(6, 1, 0) <= CFG80211_VERSION_CODE
 		    int link_id,
 #endif
 		    u8 key_index, bool pairwise,
@@ -6699,7 +6703,7 @@ int mtk_cfg_get_key(struct wiphy *wiphy,
 
 int mtk_cfg_del_key(struct wiphy *wiphy,
 		    struct net_device *ndev,
-#if KERNEL_VERSION(5, 15, 0) <= CFG80211_VERSION_CODE
+#if KERNEL_VERSION(6, 1, 0) <= CFG80211_VERSION_CODE
 		    int link_id,
 #endif
 		    u8 key_index, bool pairwise, const u8 *mac_addr)
@@ -6725,7 +6729,7 @@ int mtk_cfg_del_key(struct wiphy *wiphy,
 
 int mtk_cfg_set_default_key(struct wiphy *wiphy,
 			    struct net_device *ndev,
-#if KERNEL_VERSION(5, 15, 0) <= CFG80211_VERSION_CODE
+#if KERNEL_VERSION(6, 1, 0) <= CFG80211_VERSION_CODE
 			    int link_id,
 #endif
 			    u8 key_index, bool unicast, bool multicast)
@@ -6751,7 +6755,7 @@ int mtk_cfg_set_default_key(struct wiphy *wiphy,
 
 int mtk_cfg_set_default_mgmt_key(struct wiphy *wiphy,
 		struct net_device *ndev,
-#if KERNEL_VERSION(5, 15, 0) <= CFG80211_VERSION_CODE
+#if KERNEL_VERSION(6, 1, 0) <= CFG80211_VERSION_CODE
 		int link_id,
 #endif
 		u8 key_index)
@@ -7677,7 +7681,7 @@ int mtk_cfg_change_beacon(struct wiphy *wiphy,
 
 int mtk_cfg_stop_ap(struct wiphy *wiphy,
 		    struct net_device *dev
-#if KERNEL_VERSION(5, 15, 0) <= CFG80211_VERSION_CODE
+#if KERNEL_VERSION(6, 0, 0) <= CFG80211_VERSION_CODE
 		    , unsigned int link_id
 #endif
 )
@@ -7719,7 +7723,7 @@ int mtk_cfg_set_wiphy_params(struct wiphy *wiphy,
 
 int mtk_cfg_set_bitrate_mask(struct wiphy *wiphy,
 			     struct net_device *dev,
-#if KERNEL_VERSION(5, 15, 0) <= CFG80211_VERSION_CODE
+#if KERNEL_VERSION(6, 0, 0) <= CFG80211_VERSION_CODE
 			     unsigned int link_id,
 #endif
 			     const u8 *peer,
