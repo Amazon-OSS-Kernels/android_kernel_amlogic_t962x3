@@ -6535,7 +6535,6 @@ void kalWowInit(IN struct GLUE_INFO *prGlueInfo)
 {
 	kalMemZero(&prGlueInfo->prAdapter->rWowCtrl.stWowPort,
 		   sizeof(struct WOW_PORT));
-	wlanCfgSetWowPorts(prGlueInfo->prAdapter);
 	prGlueInfo->prAdapter->rWowCtrl.ucReason = INVALID_WOW_WAKE_UP_REASON;
 
 	prGlueInfo->prAdapter->mdns_offload_enable = FALSE;
@@ -8851,9 +8850,11 @@ unsigned long kal_kallsyms_lookup_name(const char *name)
 {
 	unsigned long ret = 0;
 
-	DBGLOG(INIT, INFO, "%s(%s)\r\n", __func__, name);
+#if 1 // frog  MTK TODO
 	ret = (unsigned long)__symbol_get(name);
-
+#else
+	ret = kallsyms_lookup_name(name);
+#endif
 	if (ret) {
 #ifdef CONFIG_ARM
 #ifdef CONFIG_THUMB2_KERNEL
@@ -8863,12 +8864,6 @@ unsigned long kal_kallsyms_lookup_name(const char *name)
 #endif
 	}
 	return ret;
-}
-
-void kal_kallsyms_put(const char *name)
-{
-	DBGLOG(INIT, INFO, "%s(%s)\r\n", __func__, name);
-	__symbol_put(name);
 }
 
 #ifdef CONFIG_PM_SLEEP

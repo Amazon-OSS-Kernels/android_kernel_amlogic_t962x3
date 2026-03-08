@@ -117,9 +117,9 @@ enum _ENUM_CHIP_RESET_REASON_TYPE_T {
 	RST_BT_TRIGGER,
 	RST_OID_TIMEOUT,
 	RST_CMD_TRIGGER,
-	RST_CR_ACCESS_FAIL,
-	RST_HIF_FAIL,
+#if CFG_FTV_abc123_135_PATCH
 	RST_PROBE_FAIL,
+#endif
 	RST_REASON_MAX
 };
 
@@ -240,14 +240,11 @@ extern u_int8_t fgIsResetHangState;
 
 
 #if CFG_CHIP_RESET_SUPPORT
-#define GL_RESET_TRIGGER(_prAdapter, _u4Flags, _eReason) \
-{ \
-	glGetRstReason(_eReason); \
+#define GL_RESET_TRIGGER(_prAdapter, _u4Flags) \
 	glResetTrigger(_prAdapter, (_u4Flags), \
-	(const uint8_t *)__FILE__, __LINE__); \
-}
+	(const uint8_t *)__FILE__, __LINE__)
 #else
-#define GL_RESET_TRIGGER(_prAdapter, _u4Flags, _eReason) \
+#define GL_RESET_TRIGGER(_prAdapter, _u4Flags) \
 	DBGLOG(INIT, INFO, "DO NOT support chip reset\n")
 #endif
 

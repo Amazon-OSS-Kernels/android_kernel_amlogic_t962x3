@@ -1624,8 +1624,6 @@ void wlanCfgSetSwCtrl(IN struct ADAPTER *prAdapter);
 
 void wlanCfgSetChip(IN struct ADAPTER *prAdapter);
 
-void wlanCfgSetWowPorts(IN struct ADAPTER *prAdapter);
-
 void wlanCfgSetDebugLevel(IN struct ADAPTER *prAdapter);
 
 void wlanCfgSetCountryCode(IN struct ADAPTER *prAdapter);

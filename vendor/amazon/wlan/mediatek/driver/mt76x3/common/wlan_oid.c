@@ -2751,7 +2751,6 @@ wlanoidSetAddKey(IN struct ADAPTER *prAdapter, IN void *pvSetBuffer,
 #if CFG_SUPPORT_802_11W
 		/* AP PMF */
 		if (prCmdKey->ucAlgorithmId == CIPHER_SUITE_BIP) {
-			prCmdKey->ucKeyId = KEY_ID_BIP;
 			if (prCmdKey->ucIsAuthenticator) {
 				DBGLOG(RSN, INFO,
 				"Authenticator BIP bssid:%d\n",
@@ -2765,22 +2764,18 @@ wlanoidSetAddKey(IN struct ADAPTER *prAdapter, IN void *pvSetBuffer,
 						prCmdKey->ucAlgorithmId,
 						prCmdKey->ucKeyId);
 			} else {
-				if (prBssInfo->prStaRecOfAP) {
-					prCmdKey->ucWlanIndex =
-					    secPrivacySeekForBcEntry(prAdapter,
-						    prBssInfo->ucBssIndex,
-						    prBssInfo->prStaRecOfAP
-							->aucMacAddr,
-						    prBssInfo->prStaRecOfAP
-							->ucIndex,
-						    prCmdKey->ucAlgorithmId,
-						    prCmdKey->ucKeyId);
+				prCmdKey->ucWlanIndex =
+				    secPrivacySeekForBcEntry(prAdapter,
+					    prBssInfo->ucBssIndex,
+					    prBssInfo->prStaRecOfAP->aucMacAddr,
+					    prBssInfo->prStaRecOfAP->ucIndex,
+					    prCmdKey->ucAlgorithmId,
+					    prCmdKey->ucKeyId);
 
 #if CFG_FTV_76x3_PMF_CERT_FIX
-					kalMemCopy(prCmdKey->aucPeerAddr,
-						prBssInfo->prStaRecOfAP->aucMacAddr, MAC_ADDR_LEN);
+				kalMemCopy(prCmdKey->aucPeerAddr,
+					prBssInfo->prStaRecOfAP->aucMacAddr, MAC_ADDR_LEN);
 #endif
-				}
 			}
 
 			DBGLOG(RSN, INFO, "BIP BC wtbl index:%d\n",

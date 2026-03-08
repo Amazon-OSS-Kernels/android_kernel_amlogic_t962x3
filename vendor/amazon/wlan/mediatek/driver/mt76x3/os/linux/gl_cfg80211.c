@@ -857,9 +857,7 @@ int mtk_cfg80211_get_link_statistics(struct wiphy *wiphy,
 	} else {
 		rStatus = kalIoctl(prGlueInfo, wlanoidQueryRssi, &i4Rssi,
 			sizeof(i4Rssi), TRUE, FALSE, FALSE, &u4BufLen);
-		if (rStatus == WLAN_STATUS_ADAPTER_NOT_READY)
-			DBGLOG(REQ, INFO, "No AIS connection, unable to retrieve rssi\n");
-		else if (rStatus != WLAN_STATUS_SUCCESS)
+		if (rStatus != WLAN_STATUS_SUCCESS)
 			DBGLOG(REQ, WARN, "unable to retrieve rssi\n");
 	}
 
@@ -1308,19 +1306,16 @@ int mtk_cfg80211_auth(struct wiphy *wiphy, struct net_device *ndev,
 	case NL80211_AUTHTYPE_OPEN_SYSTEM:
 		if (!(prGlueInfo->rWpaInfo.u4AuthAlg & AUTH_TYPE_OPEN_SYSTEM))
 			fgNewAuthParam = TRUE;
-		prGlueInfo->rWpaInfo.u4AuthAlg = 0;
 		prGlueInfo->rWpaInfo.u4AuthAlg |= AUTH_TYPE_OPEN_SYSTEM;
 		break;
 	case NL80211_AUTHTYPE_SHARED_KEY:
 		if (!(prGlueInfo->rWpaInfo.u4AuthAlg & AUTH_TYPE_SHARED_KEY))
 			fgNewAuthParam = TRUE;
-		prGlueInfo->rWpaInfo.u4AuthAlg = 0;
 		prGlueInfo->rWpaInfo.u4AuthAlg |= AUTH_TYPE_SHARED_KEY;
 		break;
 	case NL80211_AUTHTYPE_SAE:
 		if (!(prGlueInfo->rWpaInfo.u4AuthAlg & AUTH_TYPE_SAE))
 			fgNewAuthParam = TRUE;
-		prGlueInfo->rWpaInfo.u4AuthAlg = 0;
 		prGlueInfo->rWpaInfo.u4AuthAlg |= AUTH_TYPE_SAE;
 		break;
 #if CFG_SUPPORT_802_11R
@@ -1335,7 +1330,6 @@ int mtk_cfg80211_auth(struct wiphy *wiphy, struct net_device *ndev,
 		DBGLOG(REQ, WARN,
 			"Auth type: %ld not support, use default OPEN system\n",
 			req->auth_type);
-		prGlueInfo->rWpaInfo.u4AuthAlg = 0;
 		prGlueInfo->rWpaInfo.u4AuthAlg |= AUTH_TYPE_OPEN_SYSTEM;
 		break;
 	}

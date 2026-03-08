@@ -4099,8 +4099,8 @@ static int32_t wlanProbe(void *pvData, void *pvDriverData)
 				DBGLOG(INIT, ERROR, "wlanProbe: trigger whole reset(%d)\n",
 						g_u4ProbeChipResetTimes);
 				g_u4ProbeChipResetTimes++;
-				GL_RESET_TRIGGER(prAdapter, RST_FLAG_CHIP_RESET,
-									RST_PROBE_FAIL);
+				eResetReason = RST_PROBE_FAIL;
+				GL_RESET_TRIGGER(prAdapter, RST_FLAG_CHIP_RESET);
 			}
 #endif
 			wlanWakeLockUninit(prGlueInfo);

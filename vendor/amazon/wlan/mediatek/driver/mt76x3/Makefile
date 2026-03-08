@@ -1,8 +1,7 @@
 ifneq ($(filter abc123_ftv abc123, $(KERNEL_5_4_TARGET_DEVICE)),)
 include $(dir $(abspath $(lastword $(MAKEFILE_LIST))))config/abc123.config
-else ifneq ($(filter abc123, $(KERNEL_5_4_TARGET_DEVICE)),)
-include $(dir $(abspath $(lastword $(MAKEFILE_LIST))))config/abc123.config
 else
+
 include $(dir $(abspath $(lastword $(MAKEFILE_LIST)))).config
 endif
 #/***** Manage configs into compile options ******/
@@ -361,12 +360,6 @@ ifneq ($(CFG_FTV_64888_PATCH),)
 ccflags-y += -DCFG_FTV_64888_PATCH=$(CFG_FTV_64888_PATCH)
 endif
 
-ifeq ($(CFG_DFS_NEWCH_DFS_FORCE_DISCONNECT),y)
-	ccflags-y += -DCFG_DFS_NEWCH_DFS_FORCE_DISCONNECT=1
-else
-	ccflags-y += -DCFG_DFS_NEWCH_DFS_FORCE_DISCONNECT=0
-endif
-
 ifneq ($(CFG_CFG80211_VERSION),)
 VERSION_STR = $(subst ",,$(subst ., , $(subst -, ,$(subst v,,$(CFG_CFG80211_VERSION)))))
 $(info VERSION_STR=$(VERSION_STR))
@@ -701,7 +694,7 @@ $(MODULE_NAME)-objs  += $(HIF_OBJS)
 $(MODULE_NAME)-objs  += $(MGMT_OBJS)
 $(MODULE_NAME)-objs  += $(CHIPS_OBJS)
 
-ifneq ($(filter abc123_ftv abc123 abc123, $(KERNEL_5_4_TARGET_DEVICE)),)
+ifneq ($(filter abc123_ftv abc123, $(KERNEL_5_4_TARGET_DEVICE)),)
 #Default enable prealloc memory
 CFG_MTK_PREALLOC_DRIVER := y
 endif
@@ -713,7 +706,6 @@ ccflags-y += -DCFG_PREALLOC_MEMORY
 ccflags-y += -I$(src)/prealloc/include
 MODULE_NAME_PREALLOC = $(MODULE_NAME)_prealloc
 PREALLOC_OBJS := prealloc/prealloc.o
-PREALLOC_OBJS += prealloc/chip_reset_info.o
 $(MODULE_NAME_PREALLOC)-objs += $(PREALLOC_OBJS)
 obj-m += $(MODULE_NAME_PREALLOC).o
 endif
@@ -736,23 +728,6 @@ CONFIGS_BUILD := -Wno-sometimes-uninitialized -Wno-vla
 modules:
 	$(MAKE) -C $(KERNEL_SRC) M=$(M) modules "EXTRA_CFLAGS+=-I$(INCLUDE) $(CONFIGS_BUILD) $(EXTRA_INCLUDE) $(KBUILD_CFLAGS_MODULE)" $(CONFIGS)
 	$(abspath ${OUT_DIR}/../../..)/kernel/amlogic/pop1/5.4/prebuilts/clang/host/linux-x86/clang-r377782b/bin/llvm-strip -g $(M)/$(MODULE_NAME).ko || :
-
-modules_install:
-	$(MAKE) INSTALL_MOD_STRIP=1 M=$(M) -C $(KERNEL_SRC) modules_install
-	mkdir -p ${OUT_DIR}/../vendor_lib/modules
-	cd $(M)/; find -name "*.ko" -exec cp {} ${OUT_DIR}/../vendor_lib/modules/ \;
-
-all: modules
-
-clean:
-	$(MAKE) -C $(KERNEL_SRC) M=$(M) clean
-
-else ifneq ($(filter abc123, $(KERNEL_5_4_TARGET_DEVICE)),)
-CONFIGS_BUILD := -Wno-sometimes-uninitialized -Wno-vla
-
-modules:
-	$(MAKE) -C $(KERNEL_SRC) M=$(M) modules "EXTRA_CFLAGS+=-I$(INCLUDE) $(CONFIGS_BUILD) $(EXTRA_INCLUDE) $(KBUILD_CFLAGS_MODULE)" $(CONFIGS)
-	$(abspath ${OUT_DIR}/../../..)/kernel/amlogic/pop1r/5.4/prebuilts/clang/host/linux-x86/clang-r377782b/bin/llvm-strip -g $(M)/$(MODULE_NAME).ko || :
 
 modules_install:
 	$(MAKE) INSTALL_MOD_STRIP=1 M=$(M) -C $(KERNEL_SRC) modules_install

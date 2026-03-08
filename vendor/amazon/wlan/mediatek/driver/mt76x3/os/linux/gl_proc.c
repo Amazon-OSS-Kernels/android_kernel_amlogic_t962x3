@@ -434,14 +434,15 @@ procCfgReadLabel:
 static ssize_t procCfgWrite(struct file *file, const char __user *buffer,
 	size_t count, loff_t *data)
 {
+
+	/*      uint32_t u4DriverCmd, u4DriverValue;
+	 *uint8_t *temp = &g_aucProcBuf[0];
+	 */
 	int32_t i4CopySize = sizeof(g_aucProcBuf)-8;
 	struct GLUE_INFO *prGlueInfo;
 	uint8_t *pucTmp;
+	/* PARAM_CUSTOM_P2P_SET_STRUCT_T rSetP2P; */
 
-	if (count <= 0) {
-		DBGLOG(INIT, ERROR, "wrong copy size\n");
-		return -EFAULT;
-	}
 
 	kalMemSet(g_aucProcBuf, 0, i4CopySize);
 	i4CopySize = (count < i4CopySize) ? count : (i4CopySize - 1);
@@ -556,8 +557,9 @@ static ssize_t procDbgLevelWrite(struct file *file, const char __user *buffer,
 	if (temp[0] == 'R') {
 
 		DBGLOG(INIT, ERROR, "WIFI trigger reset!!\n");
+		glGetRstReason(RST_CMD_TRIGGER);
 		GL_RESET_TRIGGER(g_prGlueInfo_proc->prAdapter,
-					RST_FLAG_CHIP_RESET, RST_CMD_TRIGGER);
+					RST_FLAG_CHIP_RESET);
 		temp[0] = 'X';
 	}
 #endif
@@ -2989,11 +2991,6 @@ static ssize_t cfgWrite(struct file *filp, const char __user *buf,
 	uint32_t u4CopySize = sizeof(aucCfgBuf);
 	uint8_t token_num = 1;
 
-	if (count <= 0) {
-		DBGLOG(INIT, ERROR, "wrong copy size\n");
-		return -EFAULT;
-	}
-
 	kalMemSet(aucCfgBuf, 0, u4CopySize);
 	u4CopySize = (count < u4CopySize) ? count : (u4CopySize - 1);
 
@@ -3002,7 +2999,7 @@ static ssize_t cfgWrite(struct file *filp, const char __user *buf,
 		return -EFAULT;
 	}
 	aucCfgBuf[u4CopySize] = '\0';
-	for (i = 0; i < u4CopySize; i++) {
+	for (; i < u4CopySize; i++) {
 		if (aucCfgBuf[i] == ' ') {
 			token_num++;
 			break;
@@ -3011,15 +3008,13 @@ static ssize_t cfgWrite(struct file *filp, const char __user *buf,
 
 	if (token_num == 1) {
 		kalMemSet(aucCfgQueryKey, 0, sizeof(aucCfgQueryKey));
-		u4CopySize = (u4CopySize < sizeof(aucCfgQueryKey)) ?
-			u4CopySize : sizeof(aucCfgQueryKey);
-
 		/* remove the 0x0a */
 		memcpy(aucCfgQueryKey, aucCfgBuf, u4CopySize);
 		if (aucCfgQueryKey[u4CopySize - 1] == 0x0a)
 			aucCfgQueryKey[u4CopySize - 1] = '\0';
 	} else {
-		wlanFwCfgParse(gprGlueInfo->prAdapter, aucCfgBuf);
+		if (u4CopySize)
+			wlanFwCfgParse(gprGlueInfo->prAdapter, aucCfgBuf);
 	}
 
 	return count;

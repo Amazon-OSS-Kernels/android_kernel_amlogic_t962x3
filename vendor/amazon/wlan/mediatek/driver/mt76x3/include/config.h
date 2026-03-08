@@ -204,10 +204,6 @@
 #define CFG_SUPPORT_IDC_CH_SWITCH	1
 #endif
 
-#ifndef CFG_DFS_NEWCH_DFS_FORCE_DISCONNECT
-#define CFG_DFS_NEWCH_DFS_FORCE_DISCONNECT	1
-#endif
-
 #if (CFG_SUPPORT_DFS == 1)	/* Add by Enlai */
 /* Quiet (802.11h) */
 #define CFG_SUPPORT_QUIET	0

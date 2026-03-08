@@ -2638,7 +2638,7 @@ uint8_t rsnCheckSaQueryTimeout(IN struct ADAPTER *prAdapter)
 	GET_CURRENT_SYSTIME(&now);
 
 	if (CHECK_FOR_TIMEOUT(now, prBssSpecInfo->u4SaQueryStart,
-			      TU_TO_MSEC(SA_QUERY_RETRY_TIMEOUT))) {
+			      TU_TO_MSEC(1000))) {
 		DBGLOG(RSN, INFO, "association SA Query timed out\n");
 
 		prBssSpecInfo->ucSaQueryTimedOut = 1;
@@ -2825,10 +2825,11 @@ void rsnStartSaQueryTimer(IN struct ADAPTER *prAdapter,
 	nicTxEnqueueMsdu(prAdapter, prMsduInfo);
 
 	DBGLOG(RSN, INFO, "Set SA Query timer %d (%d Tu)",
-	       prBssSpecInfo->u4SaQueryCount, SA_QUERY_TIMEOUT);
+	       prBssSpecInfo->u4SaQueryCount, 201);
 
 	cnmTimerStartTimer(prAdapter, &prBssSpecInfo->rSaQueryTimer,
-			   TU_TO_MSEC(SA_QUERY_TIMEOUT));
+			   TU_TO_MSEC(201));
+
 }
 
 /*----------------------------------------------------------------------------*/
@@ -3319,7 +3320,7 @@ uint8_t rsnApCheckSaQueryTimeout(IN struct ADAPTER
 	GET_CURRENT_SYSTIME(&now);
 
 	if (CHECK_FOR_TIMEOUT(now, prStaRec->rPmfCfg.u4SAQueryStart,
-			      TU_TO_MSEC(SA_QUERY_RETRY_TIMEOUT))) {
+			      TU_TO_MSEC(1000))) {
 		DBGLOG(RSN, INFO, "association SA Query timed out\n");
 
 		/* XXX PMF TODO how to report STA REC disconnect?? */
@@ -3456,10 +3457,10 @@ void rsnApStartSaQueryTimer(IN struct ADAPTER *prAdapter,
 	nicTxEnqueueMsdu(prAdapter, prMsduInfo);
 
 	DBGLOG(RSN, INFO, "AP Set SA Query timer %d (%d Tu)\n",
-	       prStaRec->rPmfCfg.u4SAQueryCount, SA_QUERY_TIMEOUT);
+	       prStaRec->rPmfCfg.u4SAQueryCount, 201);
 
 	cnmTimerStartTimer(prAdapter,
-		&prStaRec->rPmfCfg.rSAQueryTimer, TU_TO_MSEC(SA_QUERY_TIMEOUT));
+			   &prStaRec->rPmfCfg.rSAQueryTimer, TU_TO_MSEC(201));
 
 }
 

@@ -83,7 +83,6 @@
 #if CFG_ENABLE_WIFI_DIRECT
 #include "gl_p2p_os.h"
 #endif
-#include "gl_rst.h"
 
 /*
  * #if CFG_SUPPORT_QA_TOOL
@@ -3072,11 +3071,8 @@ reqExtSetAcpiDevicePowerState(IN struct GLUE_INFO
 #if CFG_SUPPORT_WAC
 #define	CMD_SET_WAC_IE_ENABLE	"SET_WAC_IE_ENABLE"
 #endif
-
-#define CMD_GET_FW_RESET_CNT		"GET_FW_RESET_CNT"
-#define CMD_RESET_FW_RESET_CNT		"RST_FW_RESET_CNT"
-
 #define	CMD_SEND_BEACONTIMEOUT	"SEND_BEACONTIMEOUT"
+
 #define CMD_GET_DISCONNECT_REASON "GET_DISCONNECT_REASON"
 #define DISCONNECT_REASON_BASE    1000
 
@@ -3876,9 +3872,7 @@ static int priv_driver_get_bss_statistics(
 	}
 	rStatus = kalIoctl(prGlueInfo, wlanoidQueryRssi, &i4Rssi,
 			   sizeof(i4Rssi), TRUE, FALSE, FALSE, &u4BufLen);
-	if (rStatus == WLAN_STATUS_ADAPTER_NOT_READY)
-		DBGLOG(REQ, INFO, "No AIS connection, unable to retrieve rssi\n");
-	else if (rStatus != WLAN_STATUS_SUCCESS)
+	if (rStatus != WLAN_STATUS_SUCCESS)
 		DBGLOG(REQ, WARN, "unable to retrieve rssi\n");
 
 
@@ -6671,9 +6665,7 @@ static int32_t priv_driver_dump_stat_info(struct ADAPTER *prAdapter,
 				   wlanoidQueryRssi, &rRssi,
 				   sizeof(rRssi), TRUE, TRUE, TRUE,
 				   &u4BufLen);
-		if (rStatus == WLAN_STATUS_ADAPTER_NOT_READY)
-			DBGLOG(REQ, INFO, "No AIS connection, unable to retrieve rssi\n");
-		else if (rStatus != WLAN_STATUS_SUCCESS)
+		if (rStatus != WLAN_STATUS_SUCCESS)
 			DBGLOG(REQ, WARN, "unable to retrieve rssi\n");
 
 #if CFG_SUPPORT_ADVANCE_CONTROL
@@ -11433,14 +11425,6 @@ priv_set_ap(IN struct net_device *prNetDev,
 				__func__, i4BytesWritten);
 			return -EFAULT;
 		}
-
-		if (prIwReqData->data.length >
-			CMD_OID_BUF_LENGTH) {
-			DBGLOG(REQ, INFO,
-				"illegal cmd length\n");
-			return -EFAULT;
-		}
-
 		if (copy_from_user(&pcExtra,
 			prIwReqData->data.pointer,
 			prIwReqData->data.length)) {
@@ -11862,11 +11846,6 @@ static int priv_driver_set_wow(IN struct net_device *prNetDev,
 
 	DBGLOG(REQ, LOUD, "command is %s\n", pcCommand);
 	wlanCfgParseArgument(pcCommand, &i4Argc, apcArgv);
-	if (i4Argc < 2)
-	{
-		DBGLOG(REQ, WARN, "%s: argc is %d, need >=2\n", __func__, i4Argc);
-		return -1;
-	}
 	DBGLOG(REQ, LOUD, "argc is %i\n", i4Argc);
 
 	u4Ret = kalkStrtou32(apcArgv[1], 0, &Enable);
@@ -11905,11 +11884,6 @@ static int priv_driver_set_wow_enable(IN struct net_device *prNetDev,
 
 	DBGLOG(REQ, LOUD, "command is %s\n", pcCommand);
 	wlanCfgParseArgument(pcCommand, &i4Argc, apcArgv);
-	if (i4Argc < 2)
-	{
-		DBGLOG(REQ, WARN, "%s: argc is %d, need >=2\n", __func__, i4Argc);
-		return -1;
-	}
 	DBGLOG(REQ, LOUD, "argc is %i\n", i4Argc);
 
 	u4Ret = kalkStrtou8(apcArgv[1], 0, &ucEnable);
@@ -11943,7 +11917,7 @@ static int priv_driver_set_wow_par(IN struct net_device *prNetDev,
 	wlanCfgParseArgument(pcCommand, &i4Argc, apcArgv);
 	DBGLOG(REQ, LOUD, "argc is %i\n", i4Argc);
 
-	if (i4Argc >= 7) {
+	if (i4Argc > 3) {
 
 		u4Ret = kalkStrtou8(apcArgv[1], 0, &ucWakeupHif);
 		if (u4Ret)
@@ -12407,11 +12381,6 @@ static int priv_driver_set_adv_pws(IN struct net_device *prNetDev,
 
 	DBGLOG(REQ, LOUD, "command is %s\n", pcCommand);
 	wlanCfgParseArgument(pcCommand, &i4Argc, apcArgv);
-	if (i4Argc < 2)
-	{
-		DBGLOG(REQ, WARN, "%s: argc is %d, need >=2\n", __func__, i4Argc);
-		return -1;
-	}
 	DBGLOG(REQ, LOUD, "argc is %i\n", i4Argc);
 
 	u4Ret = kalkStrtou8(apcArgv[1], 0, &ucAdvPws);
@@ -12725,8 +12694,8 @@ static int priv_driver_set_rst_hang(IN struct net_device *prNetDev,
 
 		if (fgIsResetHangState == SER_L0_HANG_RST_CMD_TRG) {
 			DBGLOG(REQ, STATE, "[SER][L0] cmd trigger\n");
-			GL_RESET_TRIGGER(NULL, RST_FLAG_CHIP_RESET,
-							RST_CMD_TRIGGER);
+			glGetRstReason(RST_CMD_TRIGGER);
+			GL_RESET_TRIGGER(NULL, RST_FLAG_CHIP_RESET);
 		}
 
 	} else {
@@ -16057,7 +16026,7 @@ static int priv_driver_set_p2p_ps(IN struct net_device *prNetDev,
 
 	wlanCfgParseArgument(pcCommand, &i4Argc, apcArgv);
 
-	if (i4Argc <= 2) {
+	if (i4Argc < 2) {
 		DBGLOG(REQ, ERROR,
 		 "Expect param: <role_idx> <CTW>. argc=%d now\n", i4Argc);
 		return -1;
@@ -16132,7 +16101,7 @@ static int priv_driver_set_p2p_noa(IN struct net_device *prNetDev,
 
 	wlanCfgParseArgument(pcCommand, &i4Argc, apcArgv);
 
-	if (i4Argc <= 4) {
+	if (i4Argc < 4) {
 		DBGLOG(REQ, ERROR,
 		  "SET_P2P_NOA <role_idx> <count> <interval> <duration>\n");
 		return -1;
@@ -16746,123 +16715,6 @@ static int priv_driver_set_wac_ie_enable(IN struct net_device *prNetDev,
 	return 0;
 }
 #endif
-
-static int priv_driver_get_chip_reset_cnt(IN struct net_device *prNetDev,
-				IN char *pcCommand, IN int i4TotalLen)
-{
-	struct GLUE_INFO *prGlueInfo = NULL;
-	int32_t i4BytesWritten = 0;
-	uint32_t i = 0;
-	extern const char *const apcChipResetReason[];
-	extern const char *const apcChipResetAction[];
-
-	typedef uint32_t (*p_get_func_type) (uint32_t);
-	p_get_func_type get_func;
-	char *reason_func_name = "getChipResetReasonCnt";
-	char *action_func_name = "getChipResetActionCnt";
-	void *pvAddrReason = NULL;
-	void *pvAddrAction = NULL;
-
-	if (!prNetDev) {
-		DBGLOG(REQ, ERROR, "prNetDev == NULL unexpected\n");
-		return WLAN_STATUS_FAILURE;
-	}
-
-	if (GLUE_CHK_PR2(prNetDev, pcCommand) == FALSE)
-	return -1;
-
-	prGlueInfo = *((struct GLUE_INFO **) netdev_priv(prNetDev));
-
-	DBGLOG(REQ, LOUD, "command is %s\n", pcCommand);
-
-	LOGBUF(pcCommand, i4TotalLen, i4BytesWritten, "\n");
-	pvAddrReason = (void *) kal_kallsyms_lookup_name(reason_func_name);
-
-	if(pvAddrReason) {
-		get_func = (p_get_func_type) pvAddrReason;
-
-		for(i=0; i<RST_REASON_MAX; i++) {
-			LOGBUF(pcCommand, i4TotalLen, i4BytesWritten,
-				"\t[%s] = %d\n",
-				apcChipResetReason[i], get_func(i));
-		}
-		kal_kallsyms_put(reason_func_name);
-	}
-	else {
-		DBGLOG(REQ, ERROR, "%s does not exist\n", reason_func_name);
-	}
-
-	LOGBUF(pcCommand, i4TotalLen, i4BytesWritten, "\n");
-	pvAddrAction = (void *) kal_kallsyms_lookup_name(action_func_name);
-
-	if(pvAddrAction) {
-		get_func = (p_get_func_type) pvAddrAction;
-
-		/* sync with apcChipResetAction[] */
-		for(i=0; i<2; i++) {
-			LOGBUF(pcCommand, i4TotalLen, i4BytesWritten,
-				"\t[%s] = %d\n",
-				apcChipResetAction[i], get_func(i));
-		}
-		kal_kallsyms_put(action_func_name);
-	}
-	else {
-		DBGLOG(REQ, ERROR, "%s does not exist\n", action_func_name);
-	}
-
-
-	return i4BytesWritten;
-}
-static int priv_driver_rst_chip_rst_cnt(IN struct net_device *prNetDev,
-				IN char *pcCommand, IN int i4TotalLen)
-{
-	struct GLUE_INFO *prGlueInfo = NULL;
-	int32_t i4BytesWritten = 0;
-
-	typedef void (*p_rst_func_type) (void);
-	p_rst_func_type rst_func;
-	char *reason_func_name = "rstChipResetReasonCnt";
-	char *action_func_name = "rstChipResetActionCnt";
-	void *pvAddrReason = NULL;
-	void *pvAddrAction = NULL;
-
-	if (!prNetDev) {
-		DBGLOG(REQ, ERROR, "prNetDev == NULL unexpected\n");
-		return WLAN_STATUS_FAILURE;
-	}
-
-	if (GLUE_CHK_PR2(prNetDev, pcCommand) == FALSE)
-	return -1;
-
-	prGlueInfo = *((struct GLUE_INFO **) netdev_priv(prNetDev));
-
-	DBGLOG(REQ, LOUD, "command is %s\n", pcCommand);
-
-	pvAddrReason = (void *) kal_kallsyms_lookup_name(reason_func_name);
-
-	if(pvAddrReason) {
-		rst_func = (p_rst_func_type) pvAddrReason;
-		rst_func();
-		kal_kallsyms_put(reason_func_name);
-	}
-	else {
-		DBGLOG(REQ, ERROR, "%s does not exist\n", reason_func_name);
-	}
-
-	pvAddrAction = (void *) kal_kallsyms_lookup_name(action_func_name);
-
-	if(pvAddrAction) {
-		rst_func = (p_rst_func_type) pvAddrAction;
-		rst_func();
-		kal_kallsyms_put(action_func_name);
-	}
-	else {
-		DBGLOG(REQ, ERROR, "%s does not exist\n", action_func_name);
-	}
-
-	return i4BytesWritten;
-}
-
 static int priv_driver_send_beacon_timeout(IN struct net_device *prNetDev,
 				IN char *pcCommand, IN int i4TotalLen)
 {
@@ -17756,14 +17608,6 @@ int32_t priv_driver_cmds(IN struct net_device *prNetDev, IN int8_t *pcCommand,
 			i4BytesWritten = priv_driver_set_wac_ie_enable(prNetDev,
 						pcCommand, i4TotalLen);
 #endif
-		} else if (!strnicmp(pcCommand, CMD_GET_FW_RESET_CNT,
-					strlen(CMD_GET_FW_RESET_CNT))) {
-			i4BytesWritten = priv_driver_get_chip_reset_cnt(
-				prNetDev, pcCommand, i4TotalLen);
-		} else if (!strnicmp(pcCommand, CMD_RESET_FW_RESET_CNT,
-					strlen(CMD_RESET_FW_RESET_CNT))) {
-			i4BytesWritten = priv_driver_rst_chip_rst_cnt(
-				prNetDev, pcCommand, i4TotalLen);
 		} else if (strnicmp(pcCommand, CMD_SEND_BEACONTIMEOUT,
 					strlen(CMD_SEND_BEACONTIMEOUT)) == 0) {
 			i4BytesWritten = priv_driver_send_beacon_timeout(prNetDev,

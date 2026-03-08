@@ -1890,6 +1890,10 @@ uint32_t saaFsmRunEventRxDeauth(IN struct ADAPTER *prAdapter,
 			if (!IS_AP_STA(prStaRec))
 				break;
 
+			/* if state != CONNECTED, don't do disconnect again */
+			if (prAdapter->prGlueInfo->eParamMediaStateIndicated !=
+				PARAM_MEDIA_STATE_CONNECTED)
+				break;
 
 			prAisBssInfo = prAdapter->prAisBssInfo;
 

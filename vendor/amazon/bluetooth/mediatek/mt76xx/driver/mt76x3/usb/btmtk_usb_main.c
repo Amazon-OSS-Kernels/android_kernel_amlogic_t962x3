@@ -253,7 +253,6 @@ static struct proc_dir_entry *g_proc_dir;
 static struct timer_list chip_reset_timer;
 u8 btmtk_log_lvl = BTMTK_LOG_LEVEL_DEFAULT;
 u32 btmtk_chip_reset_delay = RESET_PIN_SET_LOW_TIME; //delay in ms
-u8 btmtk_fops_open_log = BTMTK_LOG_FULL_PRINT;
 
 struct task_struct *wait_dump_complete_tsk;
 struct task_struct *wait_wlan_remove_tsk;
@@ -796,7 +795,7 @@ static void btmtk_usb_free_memory(void)
 	kfree(g_data->io_buf);
 	g_data->io_buf = NULL;
 
-	kvfree(g_data->rom_patch_image);
+	kfree(g_data->rom_patch_image);
 	g_data->rom_patch_image = NULL;
 
 	kfree(g_data->o_usb_buf);
@@ -2265,7 +2264,7 @@ static void btmtk_usb_load_code_from_bin(u8 **image, char *bin_name,
 
 	} else {
 		chip_id = g_data->chip_id;
-		kvfree(g_data->rom_patch_image);
+		kfree(g_data->rom_patch_image);
 		g_data->rom_patch_image = NULL;
 		g_data->rom_patch_image_len = 0;
 	}
@@ -2277,25 +2276,15 @@ static void btmtk_usb_load_code_from_bin(u8 **image, char *bin_name,
 		} else if (retry <= 0) {
 			*image = NULL;
 			BTUSB_ERR("%s: request_firmware %d times fail!!! err = %d", __func__, RETRY_TIMES, err);
-#ifdef CONFIG_AMAZON_METRICS_LOG
-			log_counter_to_vitals(ANDROID_LOG_INFO, BT_DOMAIN, BT_PROGRAM,
-					BT_OPERATION, BT_KEY_PROBE, 1, "count",
-					"request-fw-fail", VITALS_NORMAL);
-#endif
 			return;
 		}
 		BTUSB_ERR("%s: request_firmware fail!!! err = %d, retry = %d", __func__, err, retry);
 		msleep(100);
 	} while (retry-- > 0);
 
-	*image = kvzalloc(fw_entry->size, GFP_KERNEL);
+	*image = kzalloc(fw_entry->size, GFP_KERNEL);
 	if (*image == NULL) {
 		BTUSB_ERR("%s: kzalloc failed!! error code = %d", __func__, err);
-#ifdef CONFIG_AMAZON_METRICS_LOG
-		log_counter_to_vitals(ANDROID_LOG_INFO, BT_DOMAIN, BT_PROGRAM,
-				BT_OPERATION, BT_KEY_PROBE, 1, "count",
-				"mem-alloc-fail", VITALS_NORMAL);
-#endif
 		goto exit;
 	}
 
@@ -3779,11 +3768,6 @@ Finish:
 				btmtk_usb_start_reset_dongle_progress();
 				btmtk_usb_woble_wake_lock(g_data);
 			}
-#ifdef CONFIG_AMAZON_METRICS_LOG
-			log_counter_to_vitals(ANDROID_LOG_INFO, BT_DOMAIN, BT_PROGRAM,
-					BT_OPERATION, BT_KEY_WOBLE, 1, "count",
-					"enter-woble-fail", VITALS_NORMAL);
-#endif
 		} else
 			g_data->is_mt7668_dongle_state = BTMTK_USB_7668_DONGLE_STATE_WOBLE;
 	}
@@ -4475,11 +4459,6 @@ static int btmtk_usb_load_rom_patch_7668(void)
 
 		if (patch_status > PATCH_NEED_DOWNLOAD || patch_status == PATCH_ERR) {
 			BTUSB_ERR("%s: patch_status error", __func__);
-#ifdef CONFIG_AMAZON_METRICS_LOG
-			log_counter_to_vitals(ANDROID_LOG_INFO, BT_DOMAIN, BT_PROGRAM,
-					BT_OPERATION, BT_KEY_PROBE, 1, "count",
-					"patch-status-error", VITALS_NORMAL);
-#endif
 			ret = -1;
 			goto exit;
 		} else if (patch_status == PATCH_READY) {
@@ -4496,11 +4475,6 @@ static int btmtk_usb_load_rom_patch_7668(void)
 				ret = btmtk_usb_send_wmt_cfg();
 				if (ret < 0) {
 					BTUSB_ERR("%s: send wmt cmd failed(%d)", __func__, ret);
-#ifdef CONFIG_AMAZON_METRICS_LOG
-					log_counter_to_vitals(ANDROID_LOG_INFO, BT_DOMAIN, BT_PROGRAM,
-							BT_OPERATION, BT_KEY_PROBE, 1, "count",
-							"wmt-cfg-fail", VITALS_NORMAL);
-#endif
 					return ret;
 				}
 			}
@@ -4510,11 +4484,6 @@ static int btmtk_usb_load_rom_patch_7668(void)
 
 	if (patch_status == PATCH_IS_DOWNLOAD_BY_OTHER) {
 		BTUSB_WARN("%s: Hold by another fun more than 2 seconds", __func__);
-#ifdef CONFIG_AMAZON_METRICS_LOG
-		log_counter_to_vitals(ANDROID_LOG_INFO, BT_DOMAIN, BT_PROGRAM,
-				BT_OPERATION, BT_KEY_PROBE, 1, "count",
-				"hold-by-others", VITALS_NORMAL);
-#endif
 		ret = -1;
 		goto exit;
 	}
@@ -4532,10 +4501,6 @@ static int btmtk_usb_load_rom_patch_7668(void)
 	BTUSB_INFO("%s: loading ILM rom patch...", __func__);
 	patch_len = load_sysram3 ? PATCH_LEN_ILM : (g_data->rom_patch_len - PATCH_INFO_SIZE);
 	ret = btmtk_usb_load_partial_rom_patch_7668(patch_len, PATCH_INFO_SIZE);
-	if (ret) {
-		BTUSB_WARN("%s: loading ILM rom patch... Fail", __func__);
-		goto exit;
-	}
 	BTUSB_INFO("%s: loading ILM rom patch... Done", __func__);
 
 	/* CHIP_RESET, ROM patch would be reactivated.
@@ -4543,10 +4508,6 @@ static int btmtk_usb_load_rom_patch_7668(void)
 	 * some preparations need to be done in FW for loading sysram3 patch...
 	 */
 	ret = btmtk_usb_send_wmt_reset_cmd();
-	if (ret) {
-		BTUSB_WARN("%s: send wmt reset cmd... Fail", __func__);
-		goto exit;
-	}
 
 sysram3:
 	if (load_sysram3) {
@@ -4582,11 +4543,6 @@ static int btmtk_usb_load_partial_rom_patch_7668(u32 patch_len, int offset)
 
 	buf = usb_alloc_coherent(g_data->udev, UPLOAD_PATCH_UNIT, GFP_KERNEL, &data_dma);
 	if (!buf) {
-#ifdef CONFIG_AMAZON_METRICS_LOG
-		log_counter_to_vitals(ANDROID_LOG_INFO, BT_DOMAIN, BT_PROGRAM,
-				BT_OPERATION, BT_KEY_PROBE, 1, "count",
-				"usb-buf-alloc-fail", VITALS_NORMAL);
-#endif
 		ret = -ENOMEM;
 		goto error0;
 	}
@@ -4654,11 +4610,6 @@ static int btmtk_usb_load_partial_rom_patch_7668(u32 patch_len, int offset)
 			status = usb_submit_urb(g_data->urb[LOAD_PATCH_URB], GFP_KERNEL);
 			if (status) {
 				BTUSB_ERR("%s: submit urb failed (%d)", __func__, status);
-#ifdef CONFIG_AMAZON_METRICS_LOG
-				log_counter_to_vitals(ANDROID_LOG_INFO, BT_DOMAIN, BT_PROGRAM,
-						BT_OPERATION, BT_KEY_PROBE, 1, "count",
-						"urb-submit-fail", VITALS_NORMAL);
-#endif
 				ret = status;
 				goto error1;
 			}
@@ -4667,11 +4618,6 @@ static int btmtk_usb_load_partial_rom_patch_7668(u32 patch_len, int offset)
 					(&sent_to_mcu_done, msecs_to_jiffies(1000))) {
 				usb_kill_urb(g_data->urb[LOAD_PATCH_URB]);
 				BTUSB_ERR("%s: upload rom_patch timeout", __func__);
-#ifdef CONFIG_AMAZON_METRICS_LOG
-				log_counter_to_vitals(ANDROID_LOG_INFO, BT_DOMAIN, BT_PROGRAM,
-						BT_OPERATION, BT_KEY_PROBE, 1, "count",
-						"upload-patch-timeout", VITALS_NORMAL);
-#endif
 				ret = -ETIME;
 				goto error1;
 			}
@@ -5011,11 +4957,6 @@ static int btmtk_usb_load_rom_patch(void)
 
 	if (g_data == NULL) {
 		BTUSB_ERR("%s: g_data is NULL !", __func__);
-#ifdef CONFIG_AMAZON_METRICS_LOG
-		log_counter_to_vitals(ANDROID_LOG_INFO, BT_DOMAIN, BT_PROGRAM,
-				BT_OPERATION, BT_KEY_PROBE, 1, "count",
-				"g-data-null", VITALS_NORMAL);
-#endif
 		return err;
 	}
 
@@ -5170,11 +5111,6 @@ static int btmtk_usb_send_wmt_reset_cmd(void)
 	ret = btmtk_usb_send_wmt_cmd(cmd, sizeof(cmd), event, sizeof(event), 20, 0, false);
 	if (ret < 0) {
 		BTUSB_ERR("%s: Check reset wmt result: NG", __func__);
-#ifdef CONFIG_AMAZON_METRICS_LOG
-		log_counter_to_vitals(ANDROID_LOG_INFO, BT_DOMAIN, BT_PROGRAM,
-				BT_OPERATION, BT_KEY_PROBE, 1, "count",
-				"wmt-reset-fail", VITALS_NORMAL);
-#endif
 	} else {
 		BTUSB_INFO("%s: Check reset wmt result: OK", __func__);
 		ret = 0;
@@ -5190,29 +5126,14 @@ static int btmtk_usb_get_rom_patch_result(void)
 
 	if (g_data == NULL) {
 		BTUSB_ERR("%s: g_data == NULL!", __func__);
-#ifdef CONFIG_AMAZON_METRICS_LOG
-		log_counter_to_vitals(ANDROID_LOG_INFO, BT_DOMAIN, BT_PROGRAM,
-				BT_OPERATION, BT_KEY_PROBE, 1, "count",
-				"g-data-null", VITALS_NORMAL);
-#endif
 		goto exit;
 	}
 	if (g_data->udev == NULL) {
 		BTUSB_ERR("%s: g_data->udev == NULL!", __func__);
-#ifdef CONFIG_AMAZON_METRICS_LOG
-		log_counter_to_vitals(ANDROID_LOG_INFO, BT_DOMAIN, BT_PROGRAM,
-				BT_OPERATION, BT_KEY_PROBE, 1, "count",
-				"g-udev-null", VITALS_NORMAL);
-#endif
 		goto exit;
 	}
 	if (g_data->io_buf == NULL) {
 		BTUSB_ERR("%s: g_data->io_buf == NULL!", __func__);
-#ifdef CONFIG_AMAZON_METRICS_LOG
-		log_counter_to_vitals(ANDROID_LOG_INFO, BT_DOMAIN, BT_PROGRAM,
-				BT_OPERATION, BT_KEY_PROBE, 1, "count",
-				"io-buf-null", VITALS_NORMAL);
-#endif
 		goto exit;
 	}
 
@@ -5240,11 +5161,6 @@ static int btmtk_usb_get_rom_patch_result(void)
 		} else {
 			BTUSB_WARN("Get rom patch result: NG");
 			BTUSB_DBG_RAW(g_data->io_buf, ret, "%s: Get unknown event is:", __func__);
-#ifdef CONFIG_AMAZON_METRICS_LOG
-			log_counter_to_vitals(ANDROID_LOG_INFO, BT_DOMAIN, BT_PROGRAM,
-					BT_OPERATION, BT_KEY_PROBE, 1, "count",
-					"patch-result-fail", VITALS_NORMAL);
-#endif
 			ret = -1;
 		}
 	}
@@ -7041,12 +6957,11 @@ static int btmtk_usb_fops_open(struct inode *inode, struct file *file)
 	int state = BTMTK_USB_STATE_UNKNOWN;
 	int fstate = BTMTK_FOPS_STATE_UNKNOWN;
 
-	BTUSB_PRINT(btmtk_fops_open_log, "%s: Mediatek Bluetooth USB driver ver %s", __func__, VERSION);
-	BTUSB_PRINT(btmtk_fops_open_log, "%s: major %d minor %d (pid %d), probe counter: %d",
+	BTUSB_INFO("%s: Mediatek Bluetooth USB driver ver %s", __func__, VERSION);
+	BTUSB_INFO("%s: major %d minor %d (pid %d), probe counter: %d",
 			__func__, imajor(inode), iminor(inode), current->pid, probe_counter);
 
 	if (g_data == NULL) {
-		btmtk_fops_open_log = BTMTK_LOG_FULL_PRINT;
 		BTUSB_ERR("%s: ERROR, g_data is NULL!", __func__);
 		return -ENODEV;
 	}
@@ -7055,8 +6970,7 @@ static int btmtk_usb_fops_open(struct inode *inode, struct file *file)
 	state = btmtk_usb_get_state();
 	USB_MUTEX_UNLOCK();
 	if (state == BTMTK_USB_STATE_INIT || state == BTMTK_USB_STATE_DISCONNECT) {
-		BTUSB_PRINT(btmtk_fops_open_log, "%s: usb state is incorrest, retry!", __func__);
-		btmtk_fops_open_log = BTMTK_LOG_LIMIT_PRINT;
+		BTUSB_ERR("%s: usb state is incorrest, retry!", __func__);
 		return -EAGAIN;
 	}
 
@@ -7065,31 +6979,26 @@ static int btmtk_usb_fops_open(struct inode *inode, struct file *file)
 	FOPS_MUTEX_UNLOCK();
 	if (fstate == BTMTK_FOPS_STATE_OPENED) {
 		if (need_reopen) {
-			BTUSB_PRINT(btmtk_fops_open_log, "%s:need do fops close firstly", __func__);
-			btmtk_fops_open_log = BTMTK_LOG_LIMIT_PRINT;
+			BTUSB_WARN_LIMITTED("%s:need do fops close firstly", __func__);
 			return -EAGAIN;
 		} else {
-			btmtk_fops_open_log = BTMTK_LOG_FULL_PRINT;
 			BTUSB_WARN_LIMITTED("%s: fops opened!", __func__);
 			return 0;
 		}
 	}
 
 	if (fstate == BTMTK_FOPS_STATE_CLOSING) {
-		BTUSB_PRINT(btmtk_fops_open_log, "%s: fops close is on-going !", __func__);
-		btmtk_fops_open_log = BTMTK_LOG_LIMIT_PRINT;
+		BTUSB_WARN("%s: fops close is on-going !", __func__);
 		return -EAGAIN;
 	}
 
 	if (g_data->reset_dongle || g_data->reset_progress) {
-		BTUSB_PRINT(btmtk_fops_open_log, "%s reset_progress is %d, reset_dongle is %d", __func__,
+		BTUSB_ERR("%s reset_progress is %d, reset_dongle is %d", __func__,
 			g_data->reset_progress, g_data->reset_dongle);
-		btmtk_fops_open_log = BTMTK_LOG_LIMIT_PRINT;
 		return -EAGAIN;
 	}
 
 	if (current->pid == 1) {
-		btmtk_fops_open_log = BTMTK_LOG_FULL_PRINT;
 		BTUSB_WARN("%s: return 0", __func__);
 		return 0;
 	}
@@ -7098,7 +7007,6 @@ static int btmtk_usb_fops_open(struct inode *inode, struct file *file)
 	state = btmtk_usb_get_state();
 	USB_MUTEX_UNLOCK();
 	if (state != BTMTK_USB_STATE_WORKING && state != BTMTK_USB_STATE_STANDBY) {
-		btmtk_fops_open_log = BTMTK_LOG_FULL_PRINT;
 		BTUSB_WARN("%s: not in working state and standby state(%d).", __func__, state);
 		return -ENODEV;
 	}
@@ -7107,15 +7015,13 @@ static int btmtk_usb_fops_open(struct inode *inode, struct file *file)
 	/* init wait queue */
 	init_waitqueue_head(&(inq));
 
-	BTUSB_PRINT(btmtk_fops_open_log, "enable bulk in urb");
+	BTUSB_INFO("enable bulk in urb");
 	if (btmtk_usb_start_acl_traffic()) {
-		BTUSB_PRINT(btmtk_fops_open_log, "%s, Submit bulk in urb failed", __func__);
-		btmtk_fops_open_log = BTMTK_LOG_LIMIT_PRINT;
+		BTUSB_ERR("%s, Submit bulk in urb failed", __func__);
 		return -EAGAIN;
 	}
 
 	if (btmtk_usb_send_init_cmds()) {
-		btmtk_fops_open_log = BTMTK_LOG_LIMIT_PRINT;
 		msleep(RESET_PIN_SET_LOW_TIME + 10);	/* wait chip reset */
 		return -EAGAIN;
 	}
@@ -7128,10 +7034,9 @@ static int btmtk_usb_fops_open(struct inode *inode, struct file *file)
 	g_data->metabuffer->write_p = 0;
 	btmtk_usb_unlock_unsleepable_lock(&(g_data->metabuffer->spin_lock));
 
-	BTUSB_PRINT(btmtk_fops_open_log, "enable interrupt in urb");
+	BTUSB_INFO("enable interrupt in urb");
 	if (btmtk_usb_start_intr_traffic()) {
-		BTUSB_PRINT(btmtk_fops_open_log, "%s, Submit interrupt in urb failed", __func__);
-		btmtk_fops_open_log = BTMTK_LOG_LIMIT_PRINT;
+		BTUSB_ERR("%s, Submit interrupt in urb failed", __func__);
 		return -EAGAIN;
 	}
 
@@ -7141,7 +7046,6 @@ static int btmtk_usb_fops_open(struct inode *inode, struct file *file)
 	need_reopen = 0;
 	need_reset_stack_type = HW_ERR_NONE;
 	need_reset_stack = HW_ERR_NONE;
-	btmtk_fops_open_log = BTMTK_LOG_FULL_PRINT;
 
 	BTUSB_INFO("%s: OK", __func__);
 
@@ -7804,11 +7708,6 @@ static int btmtk_usb_probe(struct usb_interface *intf, const struct usb_device_i
 		USB_MUTEX_UNLOCK();
 		atomic_set(&doing_reset, BTMTK_RESET_DONE);
 		BTUSB_ERR("btmtk_usb_probe end Error 2");
-#ifdef CONFIG_AMAZON_METRICS_LOG
-		log_counter_to_vitals(ANDROID_LOG_INFO, BT_DOMAIN, BT_PROGRAM,
-				BT_OPERATION, BT_KEY_PROBE, 1, "count",
-				"g-data-null", VITALS_NORMAL);
-#endif
 		return -ENOMEM;
 	}
 
@@ -7819,11 +7718,6 @@ static int btmtk_usb_probe(struct usb_interface *intf, const struct usb_device_i
 
 	if (btmtk_usb_urb_alloc() < 0) {
 		BTUSB_INFO("%s: alloc urb failed\n", __func__);
-#ifdef CONFIG_AMAZON_METRICS_LOG
-		log_counter_to_vitals(ANDROID_LOG_INFO, BT_DOMAIN, BT_PROGRAM,
-				BT_OPERATION, BT_KEY_PROBE, 1, "count",
-				"urb-alloc-fail", VITALS_NORMAL);
-#endif
 		return -ENOMEM;
 	}
 
@@ -7855,11 +7749,6 @@ static int btmtk_usb_probe(struct usb_interface *intf, const struct usb_device_i
 		btmtk_usb_stop_wait_dump_complete_thread();
 
 		BTUSB_ERR("btmtk_usb_probe end Error 2");
-#ifdef CONFIG_AMAZON_METRICS_LOG
-		log_counter_to_vitals(ANDROID_LOG_INFO, BT_DOMAIN, BT_PROGRAM,
-				BT_OPERATION, BT_KEY_PROBE, 1, "count",
-				"g-data-null-ex", VITALS_NORMAL);
-#endif
 		return -ENOMEM;
 	}
 
@@ -7899,11 +7788,6 @@ static int btmtk_usb_probe(struct usb_interface *intf, const struct usb_device_i
 		btmtk_usb_stop_wait_dump_complete_thread();
 
 		BTUSB_ERR("btmtk_usb_probe end Error 3");
-#ifdef CONFIG_AMAZON_METRICS_LOG
-		log_counter_to_vitals(ANDROID_LOG_INFO, BT_DOMAIN, BT_PROGRAM,
-				BT_OPERATION, BT_KEY_PROBE, 1, "count",
-				"usb-ep-null", VITALS_NORMAL);
-#endif
 		return -ENODEV;
 	}
 
@@ -7970,11 +7854,6 @@ static int btmtk_usb_probe(struct usb_interface *intf, const struct usb_device_i
 			btmtk_usb_stop_wait_dump_complete_thread();
 
 			BTUSB_ERR("btmtk_usb_probe end Error 5");
-#ifdef CONFIG_AMAZON_METRICS_LOG
-			log_counter_to_vitals(ANDROID_LOG_INFO, BT_DOMAIN, BT_PROGRAM,
-					BT_OPERATION, BT_KEY_PROBE, 1, "count",
-					"isoc-bind-error", VITALS_NORMAL);
-#endif
 			return err;
 		}
 	}
@@ -8083,30 +7962,13 @@ static void btmtk_usb_disconnect(struct usb_interface *intf)
 					__func__, state);
 			btmtk_usb_set_state(BTMTK_USB_STATE_DISCONNECT);
 		}
-#ifdef CONFIG_AMAZON_METRICS_LOG
-		log_counter_to_vitals(ANDROID_LOG_INFO, BT_DOMAIN, BT_PROGRAM,
-				BT_OPERATION, BT_KEY_BUS_DISC, 1, "count",
-				"in-suspend", VITALS_NORMAL);
-#endif
 	} else if (state == BTMTK_USB_STATE_RESUME || state == BTMTK_USB_STATE_RESUME_FW_DUMP ||
 			state == BTMTK_USB_STATE_RESUME_DISCONNECT) {
 		BTUSB_WARN("%s: state=%d disc happens when driver is in resume, should stay in resume state later!",
 				__func__, state);
 		btmtk_usb_set_state(BTMTK_USB_STATE_RESUME_DISCONNECT);
-#ifdef CONFIG_AMAZON_METRICS_LOG
-		log_counter_to_vitals(ANDROID_LOG_INFO, BT_DOMAIN, BT_PROGRAM,
-				BT_OPERATION, BT_KEY_BUS_DISC, 1, "count",
-				"in-resume", VITALS_NORMAL);
-#endif
-
-	} else {
+	} else
 		btmtk_usb_set_state(BTMTK_USB_STATE_DISCONNECT);
-#ifdef CONFIG_AMAZON_METRICS_LOG
-		log_counter_to_vitals(ANDROID_LOG_INFO, BT_DOMAIN, BT_PROGRAM,
-				BT_OPERATION, BT_KEY_BUS_DISC, 1, "count",
-				"in-other-state", VITALS_NORMAL);
-#endif
-	}
 	USB_MUTEX_UNLOCK();
 
 	if (is_mt7668(g_data) || is_mt7663(g_data))
@@ -8226,11 +8088,6 @@ static int btmtk_usb_resume(struct usb_interface *intf)
 			&& g_data->is_mt7668_dongle_state == BTMTK_USB_7668_DONGLE_STATE_ERROR) {
 		BTUSB_INFO("%s: In BTMTK_USB_7668_DONGLE_STATE_ERROR(Could suspend caused), do assert", __func__);
 		btmtk_usb_send_assert_cmd();
-#ifdef CONFIG_AMAZON_METRICS_LOG
-		log_counter_to_vitals(ANDROID_LOG_INFO, BT_DOMAIN, BT_PROGRAM,
-				BT_OPERATION, BT_KEY_WOBLE, 1, "count",
-				"dongle-state-error", VITALS_NORMAL);
-#endif
 		return -EBADFD;
 	} else if ((is_mt7668(g_data) || is_mt7663(g_data))
 			&& g_data->is_mt7668_dongle_state != BTMTK_USB_7668_DONGLE_STATE_WOBLE
@@ -8255,11 +8112,6 @@ static int btmtk_usb_resume(struct usb_interface *intf)
 		btmtk_usb_woble_wake_lock(g_data);
 		BTUSB_ERR("%s: do assert", __func__);
 		btmtk_usb_send_assert_cmd();
-#ifdef CONFIG_AMAZON_METRICS_LOG
-		log_counter_to_vitals(ANDROID_LOG_INFO, BT_DOMAIN, BT_PROGRAM,
-				BT_OPERATION, BT_KEY_WOBLE, 1, "count",
-				"leave-woble-fail", VITALS_NORMAL);
-#endif
 	}
 
 	FOPS_MUTEX_LOCK();

@@ -281,9 +281,6 @@
 #define GED_EVENT_DOPT_WIFI_SCAN    (1 << 12)
 #endif /* CFG_SUPPORT_LOWLATENCY_MODE */
 
-/* Reserve Key_ID=3 for IGTK */
-#define KEY_ID_BIP	(3)
-
 /*******************************************************************************
  *                             D A T A   T Y P E S
  *******************************************************************************

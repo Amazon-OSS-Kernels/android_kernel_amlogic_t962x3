@@ -1081,8 +1081,7 @@ uint32_t wlanCheckWifiFunc(IN struct ADAPTER *prAdapter,
 				"[Wi-Fi] [Read WCIR_WLAN_READY fail!]");
 #else
 			GL_RESET_TRIGGER(prAdapter, RST_FLAG_DO_CORE_DUMP |
-					RST_FLAG_PREVENT_POWER_OFF,
-					RST_DRV_OWN_FAIL);
+					RST_FLAG_PREVENT_POWER_OFF);
 #endif
 			u4Status = WLAN_STATUS_FAILURE;
 			break;
@@ -2129,8 +2128,9 @@ void wlanReleasePendingOid(IN struct ADAPTER *prAdapter,
 				       "No response from chip for %u times, set NoAck flag!\n",
 				       prAdapter->ucOidTimeoutCount);
 #if CFG_abc123_CMD_BUF_DEBUG
+				glGetRstReason(RST_OID_TIMEOUT);
 				GL_RESET_TRIGGER(prAdapter,
-						 RST_FLAG_CHIP_RESET, RST_OID_TIMEOUT);
+						 RST_FLAG_CHIP_RESET);
 #endif
 			}
 
@@ -3055,8 +3055,7 @@ uint32_t wlanAccessRegisterStatus(IN struct ADAPTER *prAdapter,
 		    u4EventLen, &u4RxPktLength) != WLAN_STATUS_SUCCESS) {
 			GL_RESET_TRIGGER(prAdapter,
 					 RST_FLAG_DO_CORE_DUMP |
-					 RST_FLAG_PREVENT_POWER_OFF,
-					 RST_DRV_OWN_FAIL);
+					 RST_FLAG_PREVENT_POWER_OFF);
 			u4Status = WLAN_STATUS_FAILURE;
 			break;
 		} else {
@@ -3090,8 +3089,7 @@ uint32_t wlanAccessRegisterStatus(IN struct ADAPTER *prAdapter,
 				&& (ucSetQuery == 0))) {
 				GL_RESET_TRIGGER(prAdapter,
 						 RST_FLAG_DO_CORE_DUMP |
-						 RST_FLAG_PREVENT_POWER_OFF,
-						 RST_CR_ACCESS_FAIL);
+						 RST_FLAG_PREVENT_POWER_OFF);
 				u4Status = WLAN_STATUS_FAILURE;
 				DBGLOG(INIT, ERROR,
 				       "wlanAccessRegisterStatus: incorrect ucEID. ucSetQuery = 0x%x\n",
@@ -3101,9 +3099,7 @@ uint32_t wlanAccessRegisterStatus(IN struct ADAPTER *prAdapter,
 				u4Status = WLAN_STATUS_FAILURE;
 				GL_RESET_TRIGGER(prAdapter,
 						 RST_FLAG_DO_CORE_DUMP |
-						 RST_FLAG_PREVENT_POWER_OFF,
-						 RST_CR_ACCESS_FAIL);
-				u4Status = WLAN_STATUS_FAILURE;
+						 RST_FLAG_PREVENT_POWER_OFF);
 				DBGLOG(INIT, ERROR,
 				       "wlanAccessRegisterStatus: incorrect ucCmdSeqNum. = 0x%x\n",
 				       ucCmdSeqNum);
@@ -6856,124 +6852,6 @@ void wlanCfgSetSwCtrl(IN struct ADAPTER *prAdapter)
 	}
 }
 
-void wlanCfgSetWowPorts(IN struct ADAPTER *prAdapter)
-{
-	uint32_t i = 0, count;
-	uint16_t u2Port = 0;
-	struct WOW_CTRL *pWOW_CTRL = NULL;
-
-	int8_t aucKey[WLAN_CFG_VALUE_LEN_MAX];
-	int8_t aucValue[WLAN_CFG_VALUE_LEN_MAX];
-
-	int32_t  u4Ret = 0;
-
-	pWOW_CTRL = &prAdapter->rWowCtrl;
-
-	/* check IPv4TcpPort */
-	for (i = 0, count = 0; i < MAX_TCP_UDP_PORT; i++) {
-		kalMemZero(aucValue, WLAN_CFG_VALUE_LEN_MAX);
-		kalMemZero(aucKey, WLAN_CFG_VALUE_LEN_MAX);
-		kalScnprintf(aucKey, sizeof(aucKey), "IPv4TcpPort%d", i);
-
-		/* get nothing */
-		if (wlanCfgGet(prAdapter, aucKey, aucValue, "",
-			       0) != WLAN_STATUS_SUCCESS)
-			continue;
-		if (!kalStrCmp(aucValue, ""))
-			continue;
-
-		/* store this port */
-		u4Ret = kalkStrtou16(aucValue, 0, &u2Port);
-		if (u4Ret) {
-			DBGLOG(INIT, LOUD,
-				"parse au4Values error u4Ret=%d\n", u4Ret);
-			continue;
-		}
-
-		pWOW_CTRL->stWowPort.ausIPv4TcpPort[count++] = u2Port;
-	}
-
-	pWOW_CTRL->stWowPort.ucIPv4TcpPortCnt = count;
-
-	/* check IPv4UdpPort */
-	for (i = 0, count = 0; i < MAX_TCP_UDP_PORT; i++) {
-		kalMemZero(aucValue, WLAN_CFG_VALUE_LEN_MAX);
-		kalMemZero(aucKey, WLAN_CFG_VALUE_LEN_MAX);
-		kalScnprintf(aucKey, sizeof(aucKey), "IPv4UdpPort%d", i);
-
-		/* get nothing */
-		if (wlanCfgGet(prAdapter, aucKey, aucValue, "",
-			       0) != WLAN_STATUS_SUCCESS)
-			continue;
-		if (!kalStrCmp(aucValue, ""))
-			continue;
-
-		/* store this port */
-		u4Ret = kalkStrtou16(aucValue, 0, &u2Port);
-		if (u4Ret) {
-			DBGLOG(INIT, LOUD,
-				"parse au4Values error u4Ret=%d\n", u4Ret);
-			continue;
-		}
-
-		pWOW_CTRL->stWowPort.ausIPv4UdpPort[count++] = u2Port;
-	}
-
-	pWOW_CTRL->stWowPort.ucIPv4UdpPortCnt = count;
-
-	/* check IPv6TcpPort */
-	for (i = 0, count = 0; i < MAX_TCP_UDP_PORT; i++) {
-		kalMemZero(aucValue, WLAN_CFG_VALUE_LEN_MAX);
-		kalMemZero(aucKey, WLAN_CFG_VALUE_LEN_MAX);
-		kalScnprintf(aucKey, sizeof(aucKey), "IPv6TcpPort%d", i);
-
-		/* get nothing */
-		if (wlanCfgGet(prAdapter, aucKey, aucValue, "",
-			       0) != WLAN_STATUS_SUCCESS)
-			continue;
-		if (!kalStrCmp(aucValue, ""))
-			continue;
-
-		/* store this port */
-		u4Ret = kalkStrtou16(aucValue, 0, &u2Port);
-		if (u4Ret) {
-			DBGLOG(INIT, LOUD,
-				"parse au4Values error u4Ret=%d\n", u4Ret);
-			continue;
-		}
-
-		pWOW_CTRL->stWowPort.ausIPv6TcpPort[count++] = u2Port;
-	}
-
-	pWOW_CTRL->stWowPort.ucIPv6TcpPortCnt = count;
-
-	/* check IPv6UdpPort */
-	for (i = 0, count = 0; i < MAX_TCP_UDP_PORT; i++) {
-		kalMemZero(aucValue, WLAN_CFG_VALUE_LEN_MAX);
-		kalMemZero(aucKey, WLAN_CFG_VALUE_LEN_MAX);
-		kalScnprintf(aucKey, sizeof(aucKey), "IPv6UdpPort%d", i);
-
-		/* get nothing */
-		if (wlanCfgGet(prAdapter, aucKey, aucValue, "",
-			       0) != WLAN_STATUS_SUCCESS)
-			continue;
-		if (!kalStrCmp(aucValue, ""))
-			continue;
-
-		/* store this port */
-		u4Ret = kalkStrtou16(aucValue, 0, &u2Port);
-		if (u4Ret) {
-			DBGLOG(INIT, LOUD,
-				"parse au4Values error u4Ret=%d\n", u4Ret);
-			continue;
-		}
-
-		pWOW_CTRL->stWowPort.ausIPv6UdpPort[count++] = u2Port;
-	}
-
-	pWOW_CTRL->stWowPort.ucIPv6UdpPortCnt = count;
-}
-
 void wlanCfgSetChip(IN struct ADAPTER *prAdapter)
 {
 	uint32_t i = 0;
@@ -9033,9 +8911,9 @@ void wlanN9CorDumpTimeOut(IN struct ADAPTER *prAdapter,
 #ifdef CFG_SUPPORT_CONNAC2X
 #else
 		/* Trigger RESET */
+		glGetRstReason(RST_FW_ASSERT);
 		DBGLOG(INIT, STATE, "eResetReason = %d\n", eResetReason);
-		GL_RESET_TRIGGER(prAdapter, RST_FLAG_CHIP_RESET,
-							RST_FW_ASSERT);
+		GL_RESET_TRIGGER(prAdapter, RST_FLAG_CHIP_RESET);
 #endif
 #endif
 
@@ -9054,8 +8932,8 @@ void wlanCr4CorDumpTimeOut(IN struct ADAPTER *prAdapter,
 #ifdef CFG_SUPPORT_CONNAC2X
 #else
 		/* Trigger RESET */
-		GL_RESET_TRIGGER(prAdapter, RST_FLAG_CHIP_RESET,
-							RST_FW_ASSERT);
+		glGetRstReason(RST_FW_ASSERT);
+		GL_RESET_TRIGGER(prAdapter, RST_FLAG_CHIP_RESET);
 #endif
 #endif
 	}
