@@ -18,20 +18,6 @@
 #include "onetime_unlock_key.h"
 #include <amzn_onetime_unlock.h>
 #endif
-#define ANTIROLLBACK_MVN_REG1	(AO_SEC_SD_CFG11)
-#define ANTIROLLBACK_MVN_REG2	(AO_SEC_SD_CFG13)
-
-void read_arb_version(uint32_t *mvn_1_p, uint32_t *mvn_2_p)
-{
-	uint32_t mvn_1 = 0;
-	uint32_t mvn_2 = 0;
-
-	*mvn_1_p = mvn_1 = readl(ANTIROLLBACK_MVN_REG1);
-	*mvn_2_p = mvn_2 = readl(ANTIROLLBACK_MVN_REG2);
-
-	printf("mvn_1=0X%x,mvn_2=0X%x \n",mvn_1,mvn_2);
-}
-
 bool secure_boot_enabled(void)
 {
 	const unsigned long cfg10 = readl(AO_SEC_SD_CFG10);

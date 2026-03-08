@@ -330,22 +330,16 @@ void env_relocate_spec(void)
 #if !defined(ENV_IS_EMBEDDED)
 	ALLOC_CACHE_ALIGN_BUFFER(char, buf, CONFIG_ENV_SIZE);
 	struct mmc *mmc;
-	int dev = CONFIG_SYS_MMC_ENV_DEV;
-#ifndef CONFIG_NO_ENV_PART
 	u32 offset;
 	int ret;
-#endif
+	int dev = CONFIG_SYS_MMC_ENV_DEV;
+
 #ifdef CONFIG_SPL_BUILD
 	dev = 0;
 #endif
 
 	mmc = find_mmc_device(dev);
 
-#ifdef CONFIG_NO_ENV_PART
-	/* Use default environment if there is no env partition */
-	init_mmc_for_env(mmc);
-	set_default_env(NULL);
-#else
 	if (init_mmc_for_env(mmc)) {
 		ret = 1;
 		goto err;
@@ -369,7 +363,6 @@ fini:
 err:
 	if (ret)
 		set_default_env(NULL);
-#endif /* CONFIG_NO_ENV_PART */
-#endif /* ENV_IS_EMBEDDED */
+#endif
 }
 #endif /* CONFIG_ENV_OFFSET_REDUND */

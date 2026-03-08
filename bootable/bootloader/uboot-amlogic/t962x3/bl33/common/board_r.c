@@ -68,7 +68,6 @@ DECLARE_GLOBAL_DATA_PTR;
 #endif
 
 ulong monitor_flash_len;
-unsigned long __stack_chk_guard;
 
 __weak int board_flash_wp_on(void)
 {
@@ -299,14 +298,6 @@ static int initr_dm(void)
 	return dm_init_and_scan(false);
 }
 #endif
-
-static int __stack_chk_guard_setup(void)
-{
-     /* Initialize to a random number */
-     srand(get_timer(0));
-     __stack_chk_guard = rand();
-     return 0;
-}
 
 __weak int power_init_board(void)
 {
@@ -738,7 +729,6 @@ init_fnc_t init_sequence_r[] = {
 #ifdef CONFIG_DM
 	initr_dm,
 #endif
-	__stack_chk_guard_setup,
 #ifdef CONFIG_ARM
 	board_init,	/* Setup chipselects */
 #endif

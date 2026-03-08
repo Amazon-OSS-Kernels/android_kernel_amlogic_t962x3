@@ -18,7 +18,7 @@
 #include "errno.h"
 
 //- Local Configuration -----------------------------------------------------
-#define LD_VERSION "1.3.7.0"
+#define LD_VERSION "1.3.6.0"
 
 #define BUFFER_SIZE  (1024 * 4)     /* Size of RX Queue */
 #define BT_SEND_HCI_CMD_BEFORE_SUSPEND 1

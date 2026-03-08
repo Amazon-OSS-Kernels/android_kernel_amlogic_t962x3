@@ -260,12 +260,3 @@ void app_startup(char * const *argv)
 }
 
 #undef EXPORT_FUNC
-
-/*
-These stubs are only here to enable the standalone example programs to compile,
-they have no security impact
-*/
-unsigned long __stack_chk_guard = 0xBAAAAAAD;
-void __stack_chk_fail(void) {
-        /* TODO: panic/reset */
-}
