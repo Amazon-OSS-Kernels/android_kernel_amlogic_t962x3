@@ -12,10 +12,4 @@ config AMLOGIC_MEDIA_ENHANCEMENT_DOLBYVISION
         help
                 "Amlogic amdolby_vision module init"
 
-config DV_GDBS
-        bool "special for PRIMROSEBO setting"
-        default n
-        help
-                "Amlogic amdolby_vision module init"
-
 endmenu
