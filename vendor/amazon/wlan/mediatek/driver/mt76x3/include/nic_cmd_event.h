@@ -797,6 +797,9 @@ struct CMD_WAKE_HIF {
 	uint8_t		aucResv2[4];
 };
 
+#define  MDNS_MAX_PATTERNS     4
+#define  MDNS_PATTERN_MAX_LEN  8
+
 struct CMD_WOWLAN_PARAM {
 	uint8_t		ucCmd;
 	uint8_t		ucDetectType;
@@ -805,10 +808,10 @@ struct CMD_WOWLAN_PARAM {
 	uint8_t		ucScenarioID; /* WOW/WOBLE/Proximity */
 	uint8_t		ucBlockCount;
 	uint8_t		ucBssid;
-	uint8_t		mdns_wow_pattern_len;
+	uint8_t		mdns_wow_patterns_no;
 	struct CMD_WAKE_HIF astWakeHif[2];
 	struct WOW_PORT	stWowPort;
-	uint8_t		mdns_wow_pattern[MDNS_NAME_MAX_LEN];
+	uint8_t		mdns_wow_patterns[MDNS_MAX_PATTERNS][MDNS_PATTERN_MAX_LEN];
 };
 
 struct EVENT_WOWLAN_NOTIFY {
@@ -878,6 +881,7 @@ enum ENUM_WOW_WAKEUP_REASON {
 	ENUM_PF_CMD_TYPE_IPV6_ICMP                     = 14,
 	ENUM_PF_CMD_TYPE_ANY_UC2M                      = 15,
 	ENUM_PF_CMD_TYPE_FFS                           = 16,
+	ENUM_PF_CMD_TYPE_MDNS_WOW                      = 17,
 	ENUM_PF_CMD_TYPE_UNDEFINED                     = 255,
 };
 
@@ -1969,6 +1973,15 @@ struct CMD_FW_LOG_2_HOST_CTRL {
 	uint8_t ucFwLog2HostCtrl;
 	uint8_t ucMcuDest;
 	uint8_t ucReserve[2];
+};
+
+struct CMD_GET_MAGIC_PKT_INFO_T {
+	uint16_t u2Type;
+	uint16_t u2Len;
+	uint32_t u4ConfigMask;
+	uint32_t u4MagicPktCntTotal;
+	uint32_t u4GpioPullLowCntTotal;
+	uint32_t u4GpioPullHighCntTotal;
 };
 
 struct CMD_CHIP_CONFIG {
@@ -3269,9 +3282,11 @@ struct CMD_SET_DEVICE_MODE {
 #define CMD_NOISE_HISTOGRAM_TYPE2 (0x51)
 #endif
 #define CMD_ADMINCTRL_CONFIG_TYPE (0x6)
-#ifdef CFG_SUPPORT_EXT_PTA_DEBUG_COMMAND
+#if CFG_SUPPORT_EXT_PTA_DEBUG_COMMAND
 #define CMD_EXT_PTA_CONFIG_TYPE (0x7)
 #endif
+/* 0x8 is reserved for GARP count */
+#define CMD_GET_MAGIC_PKT_INFO_TYPE (0x9)
 
 /* for PtaConfig field */
 #define CMD_PTA_CONFIG_PTA_EN (1<<0)
@@ -3299,7 +3314,7 @@ struct CMD_SET_DEVICE_MODE {
 #define CMD_PTA_CONFIG_COMM_ACT_BT_WF1_INBAND (1<<17)
 #define CMD_PTA_CONFIG_COMM_ACT_BT_WF1_OUTBAND (1<<18)
 
-#ifdef CFG_SUPPORT_EXT_PTA_DEBUG_COMMAND
+#if CFG_SUPPORT_EXT_PTA_DEBUG_COMMAND
 /* ext pta config related mask */
 #define CMD_EXT_PTA_CONFIG_EXT_PTA (1<<0)
 #define CMD_EXT_PTA_CONFIG_HI_RX_TAG (1<<1)
@@ -3391,7 +3406,7 @@ struct CMD_PTA_CONFIG {
 	uint32_t u4CoexMode;
 };
 
-#ifdef CFG_SUPPORT_EXT_PTA_DEBUG_COMMAND
+#if CFG_SUPPORT_EXT_PTA_DEBUG_COMMAND
 struct CMD_EXT_PTA_CONFIG {
 	uint16_t u2Type;
 	uint16_t u2Len;
@@ -3409,6 +3424,9 @@ struct CMD_EXT_PTA_CONFIG {
 	uint32_t u4CommActZbWf0Hsf;
 	uint32_t u4CommActZbWf1Hsf;
 	/* used in get */
+	uint32_t u4BtTag;
+	uint32_t u4Wf0Tag;
+	uint32_t u4Wf1Tag;
 	uint32_t u4ZbGntCnt;
 	uint32_t u4ZbAbtCnt;
 	uint32_t u4ZbLoTxReqCnt;

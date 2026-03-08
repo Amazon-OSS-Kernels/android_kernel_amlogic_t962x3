@@ -2284,7 +2284,17 @@ u_int8_t halDeAggErrorCheck(struct ADAPTER *prAdapter,
 	return FALSE;
 }
 
-void halDeAggRxPktProc(struct ADAPTER *prAdapter,
+/*----------------------------------------------------------------------------*/
+/*!
+* @brief process one prRxBuf. If there is not enough free SW_RFB, queue prRxBuf
+* back to rRxDeAggQue and schedule work again.
+*
+* @param prAdapter pointer to the Adapter handler, prRxBuf received buffer
+*
+* @return True if reschedule otherwise False
+*/
+/*----------------------------------------------------------------------------*/
+u_int8_t halDeAggRxPktProc(struct ADAPTER *prAdapter,
 			struct SDIO_RX_COALESCING_BUF *prRxBuf)
 {
 	struct GL_HIF_INFO *prHifInfo;
@@ -2342,7 +2352,7 @@ void halDeAggRxPktProc(struct ADAPTER *prAdapter,
 			schedule_delayed_work(
 				&prAdapter->prGlueInfo->rRxPktDeAggWork, 0);
 
-		return;
+		return fgReschedule;
 	}
 
 	pucSrcAddr = prRxBuf->pvRxCoalescingBuf;
@@ -2448,6 +2458,8 @@ void halDeAggRxPktProc(struct ADAPTER *prAdapter,
 	QUEUE_INSERT_TAIL(&prHifInfo->rRxFreeBufQueue,
 					  (struct QUE_ENTRY *)prRxBuf);
 	mutex_unlock(&prHifInfo->rRxFreeBufQueMutex);
+
+	return fgReschedule;
 }
 
 
@@ -2458,6 +2470,7 @@ void halDeAggRxPktWorker(struct work_struct *work)
 	struct ADAPTER *prAdapter;
 	struct SDIO_RX_COALESCING_BUF *prRxBuf;
 	struct RX_CTRL *prRxCtrl;
+	uint8_t   bRescheduled = FALSE;
 
 	if (g_u4HaltFlag)
 		return;
@@ -2479,7 +2492,11 @@ void halDeAggRxPktWorker(struct work_struct *work)
 
 	mutex_unlock(&prHifInfo->rRxDeAggQueMutex);
 	while (prRxBuf) {
-		halDeAggRxPktProc(prAdapter, prRxBuf);
+		bRescheduled = halDeAggRxPktProc(prAdapter, prRxBuf);
+		if (bRescheduled) {
+			DBGLOG(RX, WARN, "halDeAggRxPktProc return rescheduled\n");
+			return;
+		}
 
 		if (prGlueInfo->ulFlag & GLUE_FLAG_HALT)
 			return;

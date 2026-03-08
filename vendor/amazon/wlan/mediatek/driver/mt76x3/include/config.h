@@ -1102,6 +1102,14 @@
 
 #define CFG_SUPPORT_EASY_DEBUG               1
 
+/*------------------------------------------------------------------------------
+ * Flags of driver to send only one cfg to fw
+ *------------------------------------------------------------------------------
+ */
+
+#ifndef CFG_SUPPORT_SEND_ONLY_ONE_CFG
+#define CFG_SUPPORT_SEND_ONLY_ONE_CFG        1
+#endif
 
 /*------------------------------------------------------------------------------
  * Flags of driver delay calibration atfer efuse buffer mode CMD
@@ -1430,6 +1438,11 @@
 #ifndef CFG_FTV_62866_PATCH
 #define CFG_FTV_62866_PATCH 0
 #endif
+
+#ifndef CFG_SUPPORT_EXT_PTA_DEBUG_COMMAND
+#define CFG_SUPPORT_EXT_PTA_DEBUG_COMMAND 0
+#endif
+
 
 /*------------------------------------------------------------------------------
  * Support CFG_SUPPORT_INBAND_WAKEUP

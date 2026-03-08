@@ -852,7 +852,7 @@ u_int8_t p2pNetRegister(struct GLUE_INFO *prGlueInfo,
 
 	/* register for net device */
 	if (register_netdev(prGlueInfo->prP2PInfo[0]->prDevHandler) < 0) {
-		DBGLOG(INIT, WARN, "unable to register netdevice for p2p\n");
+		DBGLOG(INIT, WARN, "unable to register netdevice for p2p0\n");
 		/* free dev in glUnregisterP2P() */
 		/* free_netdev(prGlueInfo->prP2PInfo[0]->prDevHandler); */
 		ret = FALSE;
@@ -877,9 +877,10 @@ u_int8_t p2pNetRegister(struct GLUE_INFO *prGlueInfo,
 			prGlueInfo->prP2PInfo[1]->prDevHandler) < 0) {
 
 			DBGLOG(INIT, WARN,
-				"unable to register netdevice for p2p\n");
+				"unable to register netdevice for p2p1\n");
 
-			free_netdev(prGlueInfo->prP2PInfo[1]->prDevHandler);
+			/* free dev in glUnregisterP2P() */
+			/* free_netdev(prGlueInfo->prP2PInfo[1]->prDevHandler); */
 
 			ret = FALSE;
 		} else {
@@ -1304,7 +1305,7 @@ u_int8_t glRegisterP2P(struct GLUE_INFO *prGlueInfo, const char *prDevName,
 		rMacAddr[0] |= 0x2;
 		/* change to local administrated address */
 		rMacAddr[0] ^= i << 2;
-		kalMemCopy(prP2pDev->dev_addr, rMacAddr, ETH_ALEN);
+		kal_eth_hw_addr_set(prP2pDev, rMacAddr);
 		kalMemCopy(prP2pDev->perm_addr, prP2pDev->dev_addr, ETH_ALEN);
 
 		if (glSetupP2P(prGlueInfo, prP2pWdev, prP2pDev, i, fgIsApMode)
@@ -2150,7 +2151,7 @@ int p2pSetMACAddress(IN struct net_device *prDev, void *addr)
 	sa = (struct sockaddr *)addr;
 
 	COPY_MAC_ADDR(prBssInfo->aucOwnMacAddr, sa->sa_data);
-	COPY_MAC_ADDR(prDev->dev_addr, sa->sa_data);
+	kal_eth_hw_addr_set(prDev, sa->sa_data);
 
 	if ((prP2pInfo->prDevHandler == prDev)
 			&& mtk_IsP2PNetDevice(prGlueInfo, prDev)) {

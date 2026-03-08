@@ -733,8 +733,8 @@ void kalUpdateMACAddress(IN struct GLUE_INFO *prGlueInfo,
 
 	if (UNEQUAL_MAC_ADDR(prGlueInfo->prDevHandler->dev_addr,
 			     pucMacAddr))
-		memcpy(prGlueInfo->prDevHandler->dev_addr, pucMacAddr,
-		       PARAM_MAC_ADDR_LEN);
+		kal_eth_hw_addr_set(prGlueInfo->prDevHandler,
+			pucMacAddr);
 
 }
 
@@ -1194,10 +1194,14 @@ uint32_t kalRxIndicateOnePkt(IN struct GLUE_INFO
 	}
 #endif /* CFG_RX_NAPI_SUPPORT */
 
+#if KERNEL_VERSION(5, 18, 0) <= CFG80211_VERSION_CODE
+		netif_rx(prSkb);
+#else
 	if (!in_interrupt())
 		netif_rx_ni(prSkb);	/* only in non-interrupt context */
 	else
 		netif_rx(prSkb);
+#endif
 
 	return WLAN_STATUS_SUCCESS;
 }
@@ -1391,7 +1395,7 @@ kalIndicateStatusAndComplete(IN struct GLUE_INFO
 			CFG80211_BSS_FTYPE_PRESP,
 			arBssid,
 			0, /* TSF */
-			WLAN_CAPABILITY_ESS,
+			prBssDesc->u2CapInfo,
 			prBssDesc->u2BeaconInterval, /* beacon interval */
 			prBssDesc->aucIEBuf, /* IE */
 			prBssDesc->u2IELength, /* IE Length */
@@ -1403,7 +1407,7 @@ kalIndicateStatusAndComplete(IN struct GLUE_INFO
 			prChannel,
 			arBssid,
 			0, /* TSF */
-			WLAN_CAPABILITY_ESS,
+			prBssDesc->u2CapInfo,
 			prBssDesc->u2BeaconInterval, /* beacon interval */
 			prBssDesc->aucIEBuf, /* IE */
 			prBssDesc->u2IELength, /* IE Length */
@@ -1456,7 +1460,11 @@ kalIndicateStatusAndComplete(IN struct GLUE_INFO
 			/* CFG80211 Indication */
 			if (eStatus == WLAN_STATUS_ROAM_OUT_FIND_BEST) {
 #if KERNEL_VERSION(4, 12, 0) <= CFG80211_VERSION_CODE
+#if KERNEL_VERSION(5, 15, 0) <= CFG80211_VERSION_CODE
+				rRoamInfo.links[0].bss = bss;
+#else
 				rRoamInfo.bss = bss;
+#endif
 				rRoamInfo.req_ie = prGlueInfo->aucReqIe;
 				rRoamInfo.req_ie_len =
 				prGlueInfo->u4ReqIeLength;
@@ -1721,7 +1729,8 @@ kalIndicateStatusAndComplete(IN struct GLUE_INFO
 					NULL,
 					0,
 					prConnSettings->bss,
-					0);
+					0,
+					FALSE);
 
 #else
 	#if (KERNEL_VERSION(4, 4, 41) <= CFG80211_VERSION_CODE)
@@ -1795,8 +1804,18 @@ kalIndicateStatusAndComplete(IN struct GLUE_INFO
 		if (prConnSettings->bss) {
 #if CFG_WDEV_LOCK_THREAD_SUPPORT
 			uint8_t *pFrameBuf = NULL;
+			uint8_t fgIsInterruptContext = FALSE;
 
-			pFrameBuf = kalMemAlloc(u4BufLen, VIR_MEM_TYPE);
+			if (in_interrupt()) {
+				pFrameBuf = kalMemAlloc(u4BufLen, PHY_MEM_TYPE);
+				fgIsInterruptContext = TRUE;
+			} else {
+				pFrameBuf = kalMemAlloc(u4BufLen, VIR_MEM_TYPE);
+				fgIsInterruptContext = FALSE;
+			}
+
+			if (!pFrameBuf)
+				DBGLOG(INIT, ERROR, "Alloc buffer for frame failed\n");
 
 			if (pFrameBuf) {
 				kalMemCopy((void *)pFrameBuf,
@@ -1809,7 +1828,8 @@ kalIndicateStatusAndComplete(IN struct GLUE_INFO
 						pFrameBuf,
 						u4BufLen,
 						prConnSettings->bss,
-						0);
+						0,
+						fgIsInterruptContext);
 			}
 			else {
 				/* 20210505 frog:
@@ -1822,7 +1842,8 @@ kalIndicateStatusAndComplete(IN struct GLUE_INFO
 						NULL,
 						0,
 						prConnSettings->bss,
-						0);
+						0,
+						fgIsInterruptContext);
 			}
 #else
 #if (KERNEL_VERSION(5, 1, 0) <= CFG80211_VERSION_CODE)
@@ -2852,6 +2873,7 @@ static int32_t kalThreadSchedRetrieve(struct task_struct *pThread,
 {
 #ifdef CONFIG_SCHEDSTATS
 	struct sched_entity se;
+	struct sched_statistics *stats;
 	unsigned long long sec;
 	unsigned long usec;
 
@@ -2866,11 +2888,16 @@ static int32_t kalThreadSchedRetrieve(struct task_struct *pThread,
 
 	memcpy(&se, &pThread->se, sizeof(struct sched_entity));
 	kalGetLocalTime(&sec, &usec);
+#if KERNEL_VERSION(5, 16, 0) <= LINUX_VERSION_CODE
+	stats = &pThread->stats;
+#else
+	stats = &pThread->se.statistics;
+#endif
 
 	pSched->time = sec*1000 + usec/1000;
 	pSched->exec = se.sum_exec_runtime;
-	pSched->runnable = se.statistics.wait_sum;
-	pSched->iowait = se.statistics.iowait_sum;
+	pSched->runnable = stats->wait_sum;
+	pSched->iowait = stats->iowait_sum;
 
 	return 0;
 #else
@@ -2973,11 +3000,12 @@ kalIoctl(IN struct GLUE_INFO *prGlueInfo,
 		return WLAN_STATUS_SUCCESS;
 #endif
 
+	if (!prGlueInfo || !(prGlueInfo->prAdapter)) {
+		return WLAN_STATUS_FAILURE;
+	}
+
 	if (wlanIsChipAssert(prGlueInfo->prAdapter))
 		return WLAN_STATUS_SUCCESS;
-
-	/* GLUE_SPIN_LOCK_DECLARATION(); */
-	ASSERT(prGlueInfo);
 
 	/* Just direct function call if already
 	*  in main_thread or interrupt context
@@ -3035,6 +3063,11 @@ kalIoctl(IN struct GLUE_INFO *prGlueInfo,
 
 	/* <6> Check if we use the command queue */
 	prIoReq->u4Flag = fgCmd;
+
+	if (prGlueInfo->rPendComp.done > 1)
+		DBGLOG(INIT, WARN, "[%pf] abnormal done(%d) field in prGlueInfo->rPendComp\n",
+					pfnOidHandler, prGlueInfo->rPendComp.done);
+	reinit_completion(&prGlueInfo->rPendComp);
 
 	/* <7> schedule the OID bit */
 	set_bit(GLUE_FLAG_OID_BIT, &prGlueInfo->ulFlag);
@@ -5210,8 +5243,9 @@ struct file *kalFileOpen(const char *path, int flags,
 			 int rights)
 {
 	struct file *filp = NULL;
-	mm_segment_t oldfs;
 	int err = 0;
+#if (KERNEL_VERSION(5, 15, 0) > LINUX_VERSION_CODE) || defined(CONFIG_SET_FS)
+	mm_segment_t oldfs;
 
 	oldfs = get_fs();
 #if KERNEL_VERSION(5, 1, 0) <= LINUX_VERSION_CODE
@@ -5219,8 +5253,12 @@ struct file *kalFileOpen(const char *path, int flags,
 #else
 	set_fs(get_ds());
 #endif
+#endif /* 5.15 no config_set_fs don't care kernel range */
+
 	filp = filp_open(path, flags, rights);
+#if (KERNEL_VERSION(5, 15, 0) > LINUX_VERSION_CODE) || defined(CONFIG_SET_FS)
 	set_fs(oldfs);
+#endif /* 5.15 no config_set_fs don't care kernel range */
 	if (IS_ERR(filp)) {
 		err = PTR_ERR(filp);
 		return NULL;
@@ -5820,7 +5858,8 @@ void kalWDevLockThread(IN struct GLUE_INFO* prGlueInfo,
 	IN uint8_t *pFrameBuf,
 	IN size_t frameLen,
 	IN struct cfg80211_bss *pBss,
-	IN int32_t uapsd_queues)
+	IN int32_t uapsd_queues,
+	IN uint8_t fgIsInterruptContext)
 {
 	struct PARAM_WDEV_LOCK_THREAD* pParamWDevLock = NULL;
 	GLUE_SPIN_LOCK_DECLARATION();
@@ -5829,9 +5868,20 @@ void kalWDevLockThread(IN struct GLUE_INFO* prGlueInfo,
 
 	DBGLOG(REQ, INFO, "kalWDevLockThread\n");
 
-	pParamWDevLock = (struct PARAM_WDEV_LOCK_THREAD*) kalMemAlloc(
-							sizeof(struct PARAM_WDEV_LOCK_THREAD),
-							VIR_MEM_TYPE);
+	if (in_interrupt() && fgIsInterruptContext) {
+		DBGLOG(REQ, STATE,
+			"pParamWDevLock is allocated as PHY_MEM_TYPE in intr context\n");
+		pParamWDevLock =
+			(struct PARAM_WDEV_LOCK_THREAD*)kalMemAlloc(
+					sizeof(struct PARAM_WDEV_LOCK_THREAD),
+					PHY_MEM_TYPE);
+	} else {
+		pParamWDevLock =
+			(struct PARAM_WDEV_LOCK_THREAD*)kalMemAlloc(
+					sizeof(struct PARAM_WDEV_LOCK_THREAD),
+					VIR_MEM_TYPE);
+	}
+
 	DBGLOG(REQ, TRACE, "Alloc pParamWDevLock 0x%x\n", pParamWDevLock);
 
 	if (pParamWDevLock == NULL) {
@@ -5843,6 +5893,7 @@ void kalWDevLockThread(IN struct GLUE_INFO* prGlueInfo,
 	pParamWDevLock->fn = fn;
 	pParamWDevLock->pFrameBuf = pFrameBuf;
 	pParamWDevLock->frameLen = frameLen;
+	pParamWDevLock->fgIsInterruptContext = fgIsInterruptContext;
 	if (pBss) {
 		cfg80211_ref_bss(priv_to_wiphy(prGlueInfo),
 						pBss);
@@ -6199,6 +6250,7 @@ u_int8_t kalMetCheckProfilingPacket(IN struct GLUE_INFO
 	return FALSE;
 }
 
+#if KERNEL_VERSION(6, 1, 0) > LINUX_VERSION_CODE
 static unsigned long __read_mostly tracing_mark_write_addr;
 
 static int __mt_find_tracing_mark_write_symbol_fn(
@@ -6211,12 +6263,15 @@ static int __mt_find_tracing_mark_write_symbol_fn(
 	}
 	return 0;
 }
+#endif
 
 static inline void __mt_update_tracing_mark_write_addr(void)
 {
+#if KERNEL_VERSION(6, 1, 0) > LINUX_VERSION_CODE
 	if (unlikely(tracing_mark_write_addr == 0))
 		kallsyms_on_each_symbol(
 			__mt_find_tracing_mark_write_symbol_fn, NULL);
+#endif
 }
 
 void kalMetTagPacket(IN struct GLUE_INFO *prGlueInfo,
@@ -6294,11 +6349,13 @@ static ssize_t kalMetWriteProcfs(struct file *file,
 	int u8MetProfEnable;
 
 	IN struct GLUE_INFO *prGlueInfo;
-	ssize_t result;
 
 	u4CopySize = (count < (sizeof(acBuf) - 1)) ? count :
 		     (sizeof(acBuf) - 1);
-	result = copy_from_user(acBuf, buffer, u4CopySize);
+	if (copy_from_user(acBuf, buffer, u4CopySize)) {
+		DBGLOG(INIT, ERROR, "error of copy from user\n");
+		return -EFAULT;
+	}
 	acBuf[u4CopySize] = '\0';
 
 	if (sscanf(acBuf, " %d %d", &u8MetProfEnable,
@@ -6320,13 +6377,15 @@ static ssize_t kalMetCtrlWriteProcfs(struct file *file,
 	char acBuf[128 + 1];	/* + 1 for "\0" */
 	uint32_t u4CopySize;
 	int u8MetProfEnable;
-	ssize_t result;
 
 	IN struct GLUE_INFO *prGlueInfo;
 
 	u4CopySize = (count < (sizeof(acBuf) - 1)) ? count :
 		     (sizeof(acBuf) - 1);
-	result = copy_from_user(acBuf, buffer, u4CopySize);
+	if (copy_from_user(acBuf, buffer, u4CopySize)) {
+		DBGLOG(INIT, ERROR, "error of copy from user\n");
+		return -EFAULT;
+	}
 	acBuf[u4CopySize] = '\0';
 
 	if (sscanf(acBuf, " %d", &u8MetProfEnable) == 1)
@@ -6345,13 +6404,15 @@ static ssize_t kalMetPortWriteProcfs(struct file *file,
 	char acBuf[128 + 1];	/* + 1 for "\0" */
 	uint32_t u4CopySize;
 	int u16MetUdpPort;
-	ssize_t result;
 
 	IN struct GLUE_INFO *prGlueInfo;
 
 	u4CopySize = (count < (sizeof(acBuf) - 1)) ? count :
 		     (sizeof(acBuf) - 1);
-	result = copy_from_user(acBuf, buffer, u4CopySize);
+	if (copy_from_user(acBuf, buffer, u4CopySize)) {
+		DBGLOG(INIT, ERROR, "error of copy from user\n");
+		return -EFAULT;
+	}
 	acBuf[u4CopySize] = '\0';
 
 	if (sscanf(acBuf, " %d", &u16MetUdpPort) == 1)
@@ -6369,6 +6430,7 @@ const struct file_operations rMetProcFops = {
 	.write = kalMetWriteProcfs
 };
 #endif
+#if KERNEL_VERSION(5, 5, 0) >= LINUX_VERSION_CODE
 const struct file_operations rMetProcCtrlFops = {
 	.write = kalMetCtrlWriteProcfs
 };
@@ -6376,6 +6438,15 @@ const struct file_operations rMetProcCtrlFops = {
 const struct file_operations rMetProcPortFops = {
 	.write = kalMetPortWriteProcfs
 };
+#else
+const struct proc_ops rMetProcCtrlFops = {
+	.proc_write = kalMetCtrlWriteProcfs
+};
+
+const struct proc_ops rMetProcPortFops = {
+	.proc_write = kalMetPortWriteProcfs
+};
+#endif
 
 int kalMetInitProcfs(IN struct GLUE_INFO *prGlueInfo)
 {
@@ -6596,20 +6667,23 @@ void kalWowProcess(IN struct GLUE_INFO *prGlueInfo,
 		kalSendAddMdnsCacheToFw(prGlueInfo);
 	}
 
-	/* add mDNS wow */
-	if (enable && prGlueInfo->prAdapter->mdns_wow_pattern_len > 0) {
-		rCmdWowlanParam.mdns_wow_pattern_len =
-			prGlueInfo->prAdapter->mdns_wow_pattern_len;
-		kalStrnCpy(rCmdWowlanParam.mdns_wow_pattern,
-			   prGlueInfo->prAdapter->mdns_wow_pattern,
-			   prGlueInfo->prAdapter->mdns_wow_pattern_len);
-		DBGLOG(PF, INFO, "mDNS wow pattern:%s len=%d\n",
-			rCmdWowlanParam.mdns_wow_pattern,
-			rCmdWowlanParam.mdns_wow_pattern_len);
+	/* add mdns wow patterns */
+	if (enable && prGlueInfo->prAdapter->mdns_wow_patterns_no) {
+
+		rCmdWowlanParam.mdns_wow_patterns_no =
+			     prGlueInfo->prAdapter->mdns_wow_patterns_no;
+
+		kalMemCopy(rCmdWowlanParam.mdns_wow_patterns,
+			       prGlueInfo->prAdapter->mdns_wow_patterns,
+				   sizeof(rCmdWowlanParam.mdns_wow_patterns)
+				  );
+		DBGLOG(PF, STATE, "mDNS wow enabled %d patterns\n",
+				          rCmdWowlanParam.mdns_wow_patterns_no
+		                  );
 	}
 	else {
-		rCmdWowlanParam.mdns_wow_pattern_len = 0;
-		DBGLOG(PF, INFO, "mDNS wow disabled.\n");
+		rCmdWowlanParam.mdns_wow_patterns_no = 0;
+		DBGLOG(PF, STATE, "mDNS wow disabled\n");
 	}
 
 	DBGLOG(PF, INFO,
@@ -8446,7 +8520,14 @@ void kalIndicateChannelSwitch(IN struct GLUE_INFO *prGlueInfo,
 	DBGLOG(REQ, STATE, "DFS channel switch to %d\n", ucChannelNum);
 
 	cfg80211_chandef_create(&chandef, prChannel, rChannelType);
-	cfg80211_ch_switch_notify(prGlueInfo->prDevHandler, &chandef);
+	cfg80211_ch_switch_notify(prGlueInfo->prDevHandler, &chandef
+#if KERNEL_VERSION(5, 15, 0) <= CFG80211_VERSION_CODE
+		, 0
+#endif
+#if KERNEL_VERSION(6, 1, 25) <= CFG80211_VERSION_CODE
+		, 0
+#endif
+		);
 }
 #endif
 
@@ -8826,11 +8907,16 @@ int kalRxNapiPoll(struct napi_struct *napi, int budget)
 			break;
 
 #if IS_ENABLED(CFG_GRO_SUPPORT)
+#if KERNEL_VERSION(5, 15, 0) <= CFG80211_VERSION_CODE
+		napi_gro_receive(napi, prSkb);
+#else
 		if (napi_gro_receive(napi, prSkb) == GRO_DROP)
+			ucAccept = FALSE;
+#endif
 #else
 		if (netif_receive_skb(prSkb) != NET_RX_SUCCESS)
-#endif /* CFG_GRO_SUPPORT */
 			ucAccept = FALSE;
+#endif /* CFG_GRO_SUPPORT */
 
 		if (ucAccept)
 			work_done++;
@@ -8869,6 +8955,34 @@ void kal_kallsyms_put(const char *name)
 {
 	DBGLOG(INIT, INFO, "%s(%s)\r\n", __func__, name);
 	__symbol_put(name);
+}
+
+void kal_sched_set(struct task_struct *p, int policy,
+		const struct sched_param *param,
+		int nice)
+{
+#if !defined(CONFIG_ANDROID) && (KERNEL_VERSION(5, 9, 0) <= LINUX_VERSION_CODE)
+	/* apply auto-detection based on function description
+	* TODO:
+	* kernel prefer modify "current" only, add sanity here?
+	*/
+	struct sched_attr attr = {
+		.sched_policy = policy,
+		.sched_priority = param->sched_priority,
+		.sched_nice = nice,
+	};
+
+	if (policy == SCHED_NORMAL)
+		sched_set_normal(p, nice);
+	else if (policy == SCHED_FIFO)
+		sched_set_fifo(p);
+	else
+		sched_set_fifo_low(p);
+
+	sched_setattr_nocheck(p, &attr);
+#else
+	sched_setscheduler(p, policy, param);
+#endif
 }
 
 #ifdef CONFIG_PM_SLEEP

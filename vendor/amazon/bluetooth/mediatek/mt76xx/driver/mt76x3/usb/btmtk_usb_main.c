@@ -47,7 +47,7 @@
 /* Local Configuration */
 /*============================================================================*/
 
-#define VERSION "9.0.2022072801"
+#define VERSION "9.0.2023032201"
 
 /*============================================================================*/
 /* Function Prototype */
@@ -148,6 +148,7 @@ static int btmtk_usb_send_get_vendor_cap(void);
 static int btmtk_usb_send_deinit_cmds(void);
 static void btmtk_usb_start_reset_dongle_progress(void);
 static void btmtk_usb_chip_reset_func_init(void);
+static void btmtk_usb_chip_reset_func(void);
 static void btmtk_usb_chip_reset_func_deinit(void);
 static void btmtk_usb_stop_acl_traffic(void);
 static void btmtk_usb_stop_traffic(void);
@@ -443,21 +444,11 @@ static void btmtk_chip_rst_disc_timo_func(void *data)
 	BTUSB_INFO("%s", __func__);
 
 	/* workaround for after toggle reset pin but disconnect can't occur. */
-	do {
-		typedef void (*set_pin_state_func_ptr) (struct device * dev, int state);
-		char *func_name = "btmtk_set_reset_pin_state";
-		set_pin_state_func_ptr set_pin_state_func =
-			(set_pin_state_func_ptr) btmtk_usb_kallsyms_lookup_name(func_name);
+	if (!pf_resetFunc1 && !pf_resetFunc2 && (!pf_lowFunc || !pf_highFunc)
+		&& !toggle_pin_func && !set_pin_state_func)
+		btmtk_usb_chip_reset_func_init();
 
-		if (set_pin_state_func) {
-			BTUSB_INFO("%s: Invoke %s(%d)", __func__, func_name, 0);
-			set_pin_state_func(&g_data->udev->dev, 0);
-			mdelay(btmtk_chip_reset_delay);
-			BTUSB_INFO("%s: Invoke %s(%d)", __func__, func_name, 1);
-			set_pin_state_func(&g_data->udev->dev, 1);
-		}  else
-			BTUSB_INFO("%s: No Exported Func Found [%s]", __func__, func_name);
-	} while (0);
+	btmtk_usb_chip_reset_func();
 
 	do {
 		typedef int (*usb_logical_disconnect_ptr) (struct usb_device *udev);
@@ -1304,10 +1295,7 @@ static void btmtk_usb_L0_hook_new_probe(usb_probe pFn_Probe)
 
 void btmtk_usb_toggle_rst_pin(void)
 {
-	struct device_node *node;
-	int rst_pin_num = 0;
 	int cur;
-
 	BTUSB_INFO("%s: begin", __func__);
 
 	/* Avoid multiple tasks try to toggle reset pin */
@@ -1335,101 +1323,13 @@ void btmtk_usb_toggle_rst_pin(void)
 	if (need_reset_stack_type == HW_ERR_NONE)
 		need_reset_stack_type = HW_ERR_CODE_BT_DRIVER;
 
-/* start timer to monitor disconnect event happen or not*/
+	/* start timer to monitor disconnect event happen or not*/
 	btmtk_add_timer(&g_data->chip_rst_disc_timer, btmtk_chip_rst_disc_timo_func,
 		RESET_TIMO, g_data);
 
-/*for amazon*/
-	if (toggle_pin_func) {
-		BTUSB_INFO("%s: Invoke btmtk_toggle_reset_pin(%d)", __func__, 1);
-		toggle_pin_func(&g_data->udev->dev, 1);
-		goto exit;
-	} else
-		BTUSB_INFO("%s: No Exported Func Found btmtk_toggle_reset_pin", __func__);
-/*for amazon*/
-	if (set_pin_state_func) {
-		BTUSB_INFO("%s: Invoke btmtk_set_reset_pin_state(%d)", __func__, 0);
-		set_pin_state_func(&g_data->udev->dev, 0);
-		mdelay(btmtk_chip_reset_delay);
-		BTUSB_INFO("%s: Invoke btmtk_set_reset_pin_state(%d)", __func__, 1);
-		set_pin_state_func(&g_data->udev->dev, 1);
-		goto exit;
-	}  else
-		BTUSB_INFO("%s: No Exported Func Found btmtk_set_reset_pin_state", __func__);
- 
-	if (pf_pdwndFunc) {
-		BTUSB_INFO("%s: Invoke PDWNC_SetBTInResetState(%d)", __func__, 1);
-		pf_pdwndFunc(1);
-	} else
-		BTUSB_INFO("%s: No Exported Func Found PDWNC_SetBTInResetState", __func__);
+	/*call reset function*/
+	btmtk_usb_chip_reset_func();
 
-	if (pf_resetFunc1) {
-		BTUSB_INFO("%s: Invoke pf_resetFunc1(%d)", __func__, 0);
-		pf_resetFunc1(0);
-		mdelay(RESET_PIN_SET_LOW_TIME);
-		BTUSB_INFO("%s: Invoke pf_resetFunc1(%d)", __func__, 1);
-		pf_resetFunc1(1);
-		goto exit;
-	}
-
-	if (pf_resetFunc2) {
-		rst_pin_num = g_data->bt_cfg.dongle_reset_gpio_pin;
-		BTUSB_INFO("%s: Invoke pf_resetFunc2(%d,%d)", __func__, rst_pin_num, 0);
-		pf_resetFunc2(rst_pin_num, 0);
-		mdelay(RESET_PIN_SET_LOW_TIME);
-		BTUSB_INFO("%s: Invoke pf_resetFunc2(%d,%d)", __func__, rst_pin_num, 1);
-		pf_resetFunc2(rst_pin_num, 1);
-		goto exit;
-	}
-
-	node = of_find_compatible_node(NULL, NULL, "mstar,gpio-wifi-ctl");
-	if (node) {
-		if (of_property_read_u32(node, "wifi-ctl-gpio", &rst_pin_num) == 0) {
-			if (pf_lowFunc && pf_highFunc) {
-				BTUSB_INFO("%s: Invoke pf_lowFunc(%d)", __func__, rst_pin_num);
-				pf_lowFunc(rst_pin_num);
-				mdelay(RESET_PIN_SET_LOW_TIME);
-				BTUSB_INFO("%s: Invoke pf_highFunc(%d)", __func__, rst_pin_num);
-				pf_highFunc(rst_pin_num);
-				goto exit;
-			}
-		} else
-			BTUSB_WARN("%s, failed to obtain wifi control gpio\n", __func__);
-	} else {
-		if (pf_lowFunc && pf_highFunc) {
-			rst_pin_num = g_data->bt_cfg.dongle_reset_gpio_pin;
-			BTUSB_INFO("%s: Invoke pf_lowFunc(%d)", __func__, rst_pin_num);
-			pf_lowFunc(rst_pin_num);
-			mdelay(RESET_PIN_SET_LOW_TIME);
-			BTUSB_INFO("%s: Invoke pf_highFunc(%d)", __func__, rst_pin_num);
-			pf_highFunc(rst_pin_num);
-			goto exit;
-		}
-	}
-
-	/* use linux kernel common api */
-	do {
-		struct device_node *node;
-		int mt76xx_reset_gpio = g_data->bt_cfg.dongle_reset_gpio_pin;
-
-		node = of_find_compatible_node(NULL, NULL, "mediatek,connectivity-combo");
-		if (node) {
-			mt76xx_reset_gpio = of_get_named_gpio(node, "mt76xx-reset-gpio", 0);
-			if (gpio_is_valid(mt76xx_reset_gpio))
-				BTUSB_INFO("%s: Get chip reset gpio(%d)", __func__, mt76xx_reset_gpio);
-			else
-				mt76xx_reset_gpio = g_data->bt_cfg.dongle_reset_gpio_pin;
-		}
-
-		BTUSB_INFO("%s: Invoke Low(%d)", __func__, mt76xx_reset_gpio);
-		gpio_direction_output(mt76xx_reset_gpio, 0);
-		mdelay(RESET_PIN_SET_LOW_TIME);
-		BTUSB_INFO("%s: Invoke High(%d)", __func__, mt76xx_reset_gpio);
-		gpio_direction_output(mt76xx_reset_gpio, 1);
-		goto exit;
-	} while (0);
-
-exit:
 	BTUSB_INFO("%s: end", __func__);
 }
 EXPORT_SYMBOL(btmtk_usb_toggle_rst_pin);
@@ -2277,7 +2177,12 @@ static void btmtk_usb_load_code_from_bin(u8 **image, char *bin_name,
 		} else if (retry <= 0) {
 			*image = NULL;
 			BTUSB_ERR("%s: request_firmware %d times fail!!! err = %d", __func__, RETRY_TIMES, err);
-#ifdef CONFIG_AMAZON_METRICS_LOG
+#ifdef CONFIG_AMAZON_MINERVA_METRICS_LOG
+			log_counter_to_vitals_v2(ANDROID_LOG_INFO,
+					BT_GROUP_ID, BT_SCHEMA_ID, BT_DOMAIN, BT_PROGRAM,
+					BT_OPERATION, BT_KEY_PROBE, 1, "count",
+					"request-fw-fail", VITALS_NORMAL, NULL, NULL);
+#elif defined(CONFIG_AMAZON_METRICS_LOG)
 			log_counter_to_vitals(ANDROID_LOG_INFO, BT_DOMAIN, BT_PROGRAM,
 					BT_OPERATION, BT_KEY_PROBE, 1, "count",
 					"request-fw-fail", VITALS_NORMAL);
@@ -2291,7 +2196,12 @@ static void btmtk_usb_load_code_from_bin(u8 **image, char *bin_name,
 	*image = kvzalloc(fw_entry->size, GFP_KERNEL);
 	if (*image == NULL) {
 		BTUSB_ERR("%s: kzalloc failed!! error code = %d", __func__, err);
-#ifdef CONFIG_AMAZON_METRICS_LOG
+#ifdef CONFIG_AMAZON_MINERVA_METRICS_LOG
+		log_counter_to_vitals_v2(ANDROID_LOG_INFO,
+				BT_GROUP_ID, BT_SCHEMA_ID, BT_DOMAIN, BT_PROGRAM,
+				BT_OPERATION, BT_KEY_PROBE, 1, "count",
+				"mem-alloc-fail", VITALS_NORMAL, NULL, NULL);
+#elif defined(CONFIG_AMAZON_METRICS_LOG)
 		log_counter_to_vitals(ANDROID_LOG_INFO, BT_DOMAIN, BT_PROGRAM,
 				BT_OPERATION, BT_KEY_PROBE, 1, "count",
 				"mem-alloc-fail", VITALS_NORMAL);
@@ -2566,12 +2476,15 @@ static int btmtk_usb_send_wmt_cmd(const u8 *cmd, const int cmd_len,
 	if (ret < 0) {
 		BTUSB_ERR("%s: command send failed(%d)", __func__, ret);
 		return ret;
+	}else{
+		goto check_response;
 	}
 
 get_response_again:
 	/* ms delay */
-	mdelay(delay);
+	msleep(delay);
 
+check_response:
 	/* check WMT event */
 	memset(g_data->io_buf, 0, USB_IO_BUF_SIZE);
 	ret = usb_control_msg(g_data->udev, usb_rcvctrlpipe(g_data->udev, 0),
@@ -3770,7 +3683,6 @@ static int btmtk_usb_handle_entering_WoBLE_state(void)
 		ret = btmtk_usb_send_woble_suspend_cmd();
 		return ret;
 	}
-
 Finish:
 	if (is_support_unify_woble(g_data)) {
 		if (ret) {
@@ -3779,7 +3691,12 @@ Finish:
 				btmtk_usb_start_reset_dongle_progress();
 				btmtk_usb_woble_wake_lock(g_data);
 			}
-#ifdef CONFIG_AMAZON_METRICS_LOG
+#ifdef CONFIG_AMAZON_MINERVA_METRICS_LOG
+			log_counter_to_vitals_v2(ANDROID_LOG_INFO,
+					BT_GROUP_ID, BT_SCHEMA_ID, BT_DOMAIN, BT_PROGRAM,
+					BT_OPERATION, BT_KEY_WOBLE, 1, "count",
+					"enter-woble-fail", VITALS_NORMAL, NULL, NULL);
+#elif defined(CONFIG_AMAZON_METRICS_LOG)
 			log_counter_to_vitals(ANDROID_LOG_INFO, BT_DOMAIN, BT_PROGRAM,
 					BT_OPERATION, BT_KEY_WOBLE, 1, "count",
 					"enter-woble-fail", VITALS_NORMAL);
@@ -3946,7 +3863,7 @@ load_patch_protect:
 
 			memcpy(&pos[9], g_data->rom_patch + PATCH_INFO_SIZE + cur_len, sent_len);
 
-			BTUSB_INFO("%s: sent_len = %d, cur_len = %d, phase = %d", __func__, sent_len, cur_len, phase);
+			BTUSB_DBG("%s: sent_len = %d, cur_len = %d, phase = %d", __func__, sent_len, cur_len, phase);
 
 			usb_fill_bulk_urb(g_data->urb[LOAD_PATCH_URB],
 					g_data->udev,
@@ -4390,7 +4307,7 @@ static int btmtk_usb_check_need_load_rom_patch_7668(void)
 	int ret = -1;
 
 	BTUSB_DBG_RAW(cmd, sizeof(cmd), "%s: Send CMD:", __func__);
-	ret = btmtk_usb_send_wmt_cmd(cmd, sizeof(cmd), event, sizeof(event), 20, 0, false);
+	ret = btmtk_usb_send_wmt_cmd(cmd, sizeof(cmd), event, sizeof(event), 20, 20, false);
 	/* can't get correct event */
 	if (ret < 0)
 		return PATCH_ERR;
@@ -4475,7 +4392,12 @@ static int btmtk_usb_load_rom_patch_7668(void)
 
 		if (patch_status > PATCH_NEED_DOWNLOAD || patch_status == PATCH_ERR) {
 			BTUSB_ERR("%s: patch_status error", __func__);
-#ifdef CONFIG_AMAZON_METRICS_LOG
+#ifdef CONFIG_AMAZON_MINERVA_METRICS_LOG
+			log_counter_to_vitals_v2(ANDROID_LOG_INFO,
+					BT_GROUP_ID, BT_SCHEMA_ID, BT_DOMAIN, BT_PROGRAM,
+					BT_OPERATION, BT_KEY_PROBE, 1, "count",
+					"patch-status-error", VITALS_NORMAL, NULL, NULL);
+#elif defined(CONFIG_AMAZON_METRICS_LOG)
 			log_counter_to_vitals(ANDROID_LOG_INFO, BT_DOMAIN, BT_PROGRAM,
 					BT_OPERATION, BT_KEY_PROBE, 1, "count",
 					"patch-status-error", VITALS_NORMAL);
@@ -4496,7 +4418,12 @@ static int btmtk_usb_load_rom_patch_7668(void)
 				ret = btmtk_usb_send_wmt_cfg();
 				if (ret < 0) {
 					BTUSB_ERR("%s: send wmt cmd failed(%d)", __func__, ret);
-#ifdef CONFIG_AMAZON_METRICS_LOG
+#ifdef CONFIG_AMAZON_MINERVA_METRICS_LOG
+					log_counter_to_vitals_v2(ANDROID_LOG_INFO,
+							BT_GROUP_ID, BT_SCHEMA_ID, BT_DOMAIN, BT_PROGRAM,
+							BT_OPERATION, BT_KEY_PROBE, 1, "count",
+							"wmt-cfg-fail", VITALS_NORMAL, NULL, NULL);
+#elif defined(CONFIG_AMAZON_METRICS_LOG)
 					log_counter_to_vitals(ANDROID_LOG_INFO, BT_DOMAIN, BT_PROGRAM,
 							BT_OPERATION, BT_KEY_PROBE, 1, "count",
 							"wmt-cfg-fail", VITALS_NORMAL);
@@ -4510,7 +4437,12 @@ static int btmtk_usb_load_rom_patch_7668(void)
 
 	if (patch_status == PATCH_IS_DOWNLOAD_BY_OTHER) {
 		BTUSB_WARN("%s: Hold by another fun more than 2 seconds", __func__);
-#ifdef CONFIG_AMAZON_METRICS_LOG
+#ifdef CONFIG_AMAZON_MINERVA_METRICS_LOG
+		log_counter_to_vitals_v2(ANDROID_LOG_INFO,
+				BT_GROUP_ID, BT_SCHEMA_ID, BT_DOMAIN, BT_PROGRAM,
+				BT_OPERATION, BT_KEY_PROBE, 1, "count",
+				"hold-by-others", VITALS_NORMAL, NULL, NULL);
+#elif defined(CONFIG_AMAZON_METRICS_LOG)
 		log_counter_to_vitals(ANDROID_LOG_INFO, BT_DOMAIN, BT_PROGRAM,
 				BT_OPERATION, BT_KEY_PROBE, 1, "count",
 				"hold-by-others", VITALS_NORMAL);
@@ -4582,7 +4514,12 @@ static int btmtk_usb_load_partial_rom_patch_7668(u32 patch_len, int offset)
 
 	buf = usb_alloc_coherent(g_data->udev, UPLOAD_PATCH_UNIT, GFP_KERNEL, &data_dma);
 	if (!buf) {
-#ifdef CONFIG_AMAZON_METRICS_LOG
+#ifdef CONFIG_AMAZON_MINERVA_METRICS_LOG
+		log_counter_to_vitals_v2(ANDROID_LOG_INFO,
+				BT_GROUP_ID, BT_SCHEMA_ID, BT_DOMAIN, BT_PROGRAM,
+				BT_OPERATION, BT_KEY_PROBE, 1, "count",
+				"usb-buf-alloc-fail", VITALS_NORMAL, NULL, NULL);
+#elif defined(CONFIG_AMAZON_METRICS_LOG)
 		log_counter_to_vitals(ANDROID_LOG_INFO, BT_DOMAIN, BT_PROGRAM,
 				BT_OPERATION, BT_KEY_PROBE, 1, "count",
 				"usb-buf-alloc-fail", VITALS_NORMAL);
@@ -4637,7 +4574,7 @@ static int btmtk_usb_load_partial_rom_patch_7668(u32 patch_len, int offset)
 			memcpy(&pos[9], g_data->rom_patch + offset + cur_len,
 					sent_len);
 
-			BTUSB_INFO("%s: sent_len = %d, cur_len = %d, phase = %d", __func__, sent_len,
+			BTUSB_DBG("%s: sent_len = %d, cur_len = %d, phase = %d", __func__, sent_len,
 					cur_len, phase);
 
 			usb_fill_bulk_urb(g_data->urb[LOAD_PATCH_URB],
@@ -4654,7 +4591,12 @@ static int btmtk_usb_load_partial_rom_patch_7668(u32 patch_len, int offset)
 			status = usb_submit_urb(g_data->urb[LOAD_PATCH_URB], GFP_KERNEL);
 			if (status) {
 				BTUSB_ERR("%s: submit urb failed (%d)", __func__, status);
-#ifdef CONFIG_AMAZON_METRICS_LOG
+#ifdef CONFIG_AMAZON_MINERVA_METRICS_LOG
+				log_counter_to_vitals_v2(ANDROID_LOG_INFO,
+						BT_GROUP_ID, BT_SCHEMA_ID, BT_DOMAIN, BT_PROGRAM,
+						BT_OPERATION, BT_KEY_PROBE, 1, "count",
+						"urb-submit-fail", VITALS_NORMAL, NULL, NULL);
+#elif defined(CONFIG_AMAZON_METRICS_LOG)
 				log_counter_to_vitals(ANDROID_LOG_INFO, BT_DOMAIN, BT_PROGRAM,
 						BT_OPERATION, BT_KEY_PROBE, 1, "count",
 						"urb-submit-fail", VITALS_NORMAL);
@@ -4667,7 +4609,12 @@ static int btmtk_usb_load_partial_rom_patch_7668(u32 patch_len, int offset)
 					(&sent_to_mcu_done, msecs_to_jiffies(1000))) {
 				usb_kill_urb(g_data->urb[LOAD_PATCH_URB]);
 				BTUSB_ERR("%s: upload rom_patch timeout", __func__);
-#ifdef CONFIG_AMAZON_METRICS_LOG
+#ifdef CONFIG_AMAZON_MINERVA_METRICS_LOG
+				log_counter_to_vitals_v2(ANDROID_LOG_INFO,
+						BT_GROUP_ID, BT_SCHEMA_ID, BT_DOMAIN, BT_PROGRAM,
+						BT_OPERATION, BT_KEY_PROBE, 1, "count",
+						"upload-patch-timeout", VITALS_NORMAL, NULL, NULL);
+#elif defined(CONFIG_AMAZON_METRICS_LOG)
 				log_counter_to_vitals(ANDROID_LOG_INFO, BT_DOMAIN, BT_PROGRAM,
 						BT_OPERATION, BT_KEY_PROBE, 1, "count",
 						"upload-patch-timeout", VITALS_NORMAL);
@@ -4819,6 +4766,15 @@ static void btmtk_usb_chip_reset_func_init(void)
 		return;
 	}
 
+	pf_lowFunc = (set_gpio_low) btmtk_usb_kallsyms_lookup_name("MDrv_GPIO_Set_Low");
+	pf_highFunc = (set_gpio_high) btmtk_usb_kallsyms_lookup_name("MDrv_GPIO_Set_High");
+	if (!pf_lowFunc || !pf_highFunc)
+		BTUSB_WARN("%s: No Exported Func Found MDrv_GPIO_Set_Low or High", __func__);
+	else {
+		BTUSB_INFO("%s: Found MDrv_GPIO_Set_Low & MDrv_GPIO_Set_High", __func__);
+		return;
+	}
+
 	toggle_pin_func = (toggle_pin_func_ptr) btmtk_usb_kallsyms_lookup_name("btmtk_toggle_reset_pin");
 	if (!toggle_pin_func)
 		BTUSB_WARN("%s: No Exported Func Found btmtk_toggle_reset_pin", __func__);
@@ -4849,15 +4805,6 @@ static void btmtk_usb_chip_reset_func_init(void)
 		return;
 	}
 
-	pf_lowFunc = (set_gpio_low) btmtk_usb_kallsyms_lookup_name("MDrv_GPIO_Set_Low");
-	pf_highFunc = (set_gpio_high) btmtk_usb_kallsyms_lookup_name("MDrv_GPIO_Set_High");
-	if (!pf_lowFunc || !pf_highFunc)
-		BTUSB_WARN("%s: No Exported Func Found MDrv_GPIO_Set_Low or High", __func__);
-	else {
-		BTUSB_INFO("%s: Found MDrv_GPIO_Set_Low & MDrv_GPIO_Set_High", __func__);
-		return;
-	}
-
 	pf_resetFunc1 = (reset_func_ptr1) btmtk_usb_kallsyms_lookup_name("extern_wifi_set_enable");
 	if (!pf_resetFunc1)
 		BTUSB_WARN("%s: No Exported Func Found extern_wifi_set_enable", __func__);
@@ -4866,6 +4813,105 @@ static void btmtk_usb_chip_reset_func_init(void)
 		return;
 	}
 
+}
+
+static void btmtk_usb_chip_reset_func(void)
+{
+	struct device_node *node;
+	int rst_pin_num = 0;
+
+	/*for amazon, btmtk_set_reset_pin_state*/
+	if (set_pin_state_func) {
+		BTUSB_INFO("%s: Invoke btmtk_set_reset_pin_state(%d)", __func__, 0);
+		set_pin_state_func(&g_data->udev->dev, 0);
+		mdelay(btmtk_chip_reset_delay);
+		BTUSB_INFO("%s: Invoke btmtk_set_reset_pin_state(%d)", __func__, 1);
+		set_pin_state_func(&g_data->udev->dev, 1);
+		goto exit;
+	}  else
+		BTUSB_INFO("%s: No Exported Func Found btmtk_set_reset_pin_state", __func__);
+
+	/*MDrv_GPIO_Set_Low/MDrv_GPIO_Set_High*/
+	node = of_find_compatible_node(NULL, NULL, "mstar,gpio-wifi-ctl");
+	if (node) {
+		if (of_property_read_u32(node, "wifi-ctl-gpio", &rst_pin_num) == 0) {
+			if (pf_lowFunc && pf_highFunc) {
+				BTUSB_INFO("%s: Invoke pf_lowFunc(%d)", __func__, rst_pin_num);
+				pf_lowFunc(rst_pin_num);
+				mdelay(RESET_PIN_SET_LOW_TIME);
+				BTUSB_INFO("%s: Invoke pf_highFunc(%d)", __func__, rst_pin_num);
+				pf_highFunc(rst_pin_num);
+				goto exit;
+			}
+		} else
+			BTUSB_WARN("%s, failed to obtain wifi control gpio\n", __func__);
+	} else {
+		if (pf_lowFunc && pf_highFunc) {
+			rst_pin_num = g_data->bt_cfg.dongle_reset_gpio_pin;
+			BTUSB_INFO("%s: Invoke pf_lowFunc(%d)", __func__, rst_pin_num);
+			pf_lowFunc(rst_pin_num);
+			mdelay(RESET_PIN_SET_LOW_TIME);
+			BTUSB_INFO("%s: Invoke pf_highFunc(%d)", __func__, rst_pin_num);
+			pf_highFunc(rst_pin_num);
+			goto exit;
+		}
+	}
+
+	/*for amazon*/
+	if (toggle_pin_func) {
+		BTUSB_INFO("%s: Invoke btmtk_toggle_reset_pin(%d)", __func__, 1);
+		toggle_pin_func(&g_data->udev->dev, 1);
+		goto exit;
+	} else
+		BTUSB_INFO("%s: No Exported Func Found btmtk_toggle_reset_pin", __func__);
+
+	if (pf_pdwndFunc) {
+		BTUSB_INFO("%s: Invoke PDWNC_SetBTInResetState(%d)", __func__, 1);
+		pf_pdwndFunc(1);
+	} else
+		BTUSB_INFO("%s: No Exported Func Found PDWNC_SetBTInResetState", __func__);
+
+	if (pf_resetFunc1) {
+		BTUSB_INFO("%s: Invoke pf_resetFunc1(%d)", __func__, 0);
+		pf_resetFunc1(0);
+		mdelay(RESET_PIN_SET_LOW_TIME);
+		BTUSB_INFO("%s: Invoke pf_resetFunc1(%d)", __func__, 1);
+		pf_resetFunc1(1);
+		goto exit;
+	}
+
+	if (pf_resetFunc2) {
+		rst_pin_num = g_data->bt_cfg.dongle_reset_gpio_pin;
+		BTUSB_INFO("%s: Invoke pf_resetFunc2(%d,%d)", __func__, rst_pin_num, 0);
+		pf_resetFunc2(rst_pin_num, 0);
+		mdelay(RESET_PIN_SET_LOW_TIME);
+		BTUSB_INFO("%s: Invoke pf_resetFunc2(%d,%d)", __func__, rst_pin_num, 1);
+		pf_resetFunc2(rst_pin_num, 1);
+		goto exit;
+	}
+	/* use linux kernel common api */
+	do {
+		int mt76xx_reset_gpio = g_data->bt_cfg.dongle_reset_gpio_pin;
+
+		node = of_find_compatible_node(NULL, NULL, "mediatek,connectivity-combo");
+		if (node) {
+			mt76xx_reset_gpio = of_get_named_gpio(node, "mt76xx-reset-gpio", 0);
+			if (gpio_is_valid(mt76xx_reset_gpio))
+				BTUSB_INFO("%s: Get chip reset gpio(%d)", __func__, mt76xx_reset_gpio);
+			else
+				mt76xx_reset_gpio = g_data->bt_cfg.dongle_reset_gpio_pin;
+		}
+
+		BTUSB_INFO("%s: Invoke Low(%d)", __func__, mt76xx_reset_gpio);
+		gpio_direction_output(mt76xx_reset_gpio, 0);
+		mdelay(RESET_PIN_SET_LOW_TIME);
+		BTUSB_INFO("%s: Invoke High(%d)", __func__, mt76xx_reset_gpio);
+		gpio_direction_output(mt76xx_reset_gpio, 1);
+		goto exit;
+	} while (0);
+
+exit:
+	BTUSB_INFO("%s: end", __func__);
 }
 
 static void btmtk_usb_chip_reset_func_deinit(void)
@@ -5011,7 +5057,12 @@ static int btmtk_usb_load_rom_patch(void)
 
 	if (g_data == NULL) {
 		BTUSB_ERR("%s: g_data is NULL !", __func__);
-#ifdef CONFIG_AMAZON_METRICS_LOG
+#ifdef CONFIG_AMAZON_MINERVA_METRICS_LOG
+		log_counter_to_vitals_v2(ANDROID_LOG_INFO,
+				BT_GROUP_ID, BT_SCHEMA_ID, BT_DOMAIN, BT_PROGRAM,
+				BT_OPERATION, BT_KEY_PROBE, 1, "count",
+				"g-data-null", VITALS_NORMAL, NULL, NULL);
+#elif defined(CONFIG_AMAZON_METRICS_LOG)
 		log_counter_to_vitals(ANDROID_LOG_INFO, BT_DOMAIN, BT_PROGRAM,
 				BT_OPERATION, BT_KEY_PROBE, 1, "count",
 				"g-data-null", VITALS_NORMAL);
@@ -5167,10 +5218,15 @@ static int btmtk_usb_send_wmt_reset_cmd(void)
 
 	BTUSB_INFO("%s", __func__);
 	BTUSB_DBG_RAW(cmd, sizeof(cmd), "%s: Send CMD:", __func__);
-	ret = btmtk_usb_send_wmt_cmd(cmd, sizeof(cmd), event, sizeof(event), 20, 0, false);
+	ret = btmtk_usb_send_wmt_cmd(cmd, sizeof(cmd), event, sizeof(event), 20, 20, false);
 	if (ret < 0) {
 		BTUSB_ERR("%s: Check reset wmt result: NG", __func__);
-#ifdef CONFIG_AMAZON_METRICS_LOG
+#ifdef CONFIG_AMAZON_MINERVA_METRICS_LOG
+		log_counter_to_vitals_v2(ANDROID_LOG_INFO,
+				BT_GROUP_ID, BT_SCHEMA_ID, BT_DOMAIN, BT_PROGRAM,
+				BT_OPERATION, BT_KEY_PROBE, 1, "count",
+				"wmt-reset-fail", VITALS_NORMAL, NULL, NULL);
+#elif defined(CONFIG_AMAZON_METRICS_LOG)
 		log_counter_to_vitals(ANDROID_LOG_INFO, BT_DOMAIN, BT_PROGRAM,
 				BT_OPERATION, BT_KEY_PROBE, 1, "count",
 				"wmt-reset-fail", VITALS_NORMAL);
@@ -5190,7 +5246,12 @@ static int btmtk_usb_get_rom_patch_result(void)
 
 	if (g_data == NULL) {
 		BTUSB_ERR("%s: g_data == NULL!", __func__);
-#ifdef CONFIG_AMAZON_METRICS_LOG
+#ifdef CONFIG_AMAZON_MINERVA_METRICS_LOG
+		log_counter_to_vitals_v2(ANDROID_LOG_INFO,
+				BT_GROUP_ID, BT_SCHEMA_ID, BT_DOMAIN, BT_PROGRAM,
+				BT_OPERATION, BT_KEY_PROBE, 1, "count",
+				"g-data-null", VITALS_NORMAL, NULL, NULL);
+#elif defined(CONFIG_AMAZON_METRICS_LOG)
 		log_counter_to_vitals(ANDROID_LOG_INFO, BT_DOMAIN, BT_PROGRAM,
 				BT_OPERATION, BT_KEY_PROBE, 1, "count",
 				"g-data-null", VITALS_NORMAL);
@@ -5199,7 +5260,12 @@ static int btmtk_usb_get_rom_patch_result(void)
 	}
 	if (g_data->udev == NULL) {
 		BTUSB_ERR("%s: g_data->udev == NULL!", __func__);
-#ifdef CONFIG_AMAZON_METRICS_LOG
+#ifdef CONFIG_AMAZON_MINERVA_METRICS_LOG
+		log_counter_to_vitals_v2(ANDROID_LOG_INFO,
+				BT_GROUP_ID, BT_SCHEMA_ID, BT_DOMAIN, BT_PROGRAM,
+				BT_OPERATION, BT_KEY_PROBE, 1, "count",
+				"g-udev-null", VITALS_NORMAL, NULL, NULL);
+#elif defined(CONFIG_AMAZON_METRICS_LOG)
 		log_counter_to_vitals(ANDROID_LOG_INFO, BT_DOMAIN, BT_PROGRAM,
 				BT_OPERATION, BT_KEY_PROBE, 1, "count",
 				"g-udev-null", VITALS_NORMAL);
@@ -5208,7 +5274,12 @@ static int btmtk_usb_get_rom_patch_result(void)
 	}
 	if (g_data->io_buf == NULL) {
 		BTUSB_ERR("%s: g_data->io_buf == NULL!", __func__);
-#ifdef CONFIG_AMAZON_METRICS_LOG
+#ifdef CONFIG_AMAZON_MINERVA_METRICS_LOG
+		log_counter_to_vitals_v2(ANDROID_LOG_INFO,
+				BT_GROUP_ID, BT_SCHEMA_ID, BT_DOMAIN, BT_PROGRAM,
+				BT_OPERATION, BT_KEY_PROBE, 1, "count",
+				"io-buf-null", VITALS_NORMAL, NULL, NULL);
+#elif defined(CONFIG_AMAZON_METRICS_LOG)
 		log_counter_to_vitals(ANDROID_LOG_INFO, BT_DOMAIN, BT_PROGRAM,
 				BT_OPERATION, BT_KEY_PROBE, 1, "count",
 				"io-buf-null", VITALS_NORMAL);
@@ -5227,7 +5298,7 @@ static int btmtk_usb_get_rom_patch_result(void)
 
 	/* ret should be 16 bytes */
 	if (ret >= sizeof(event) && !memcmp(g_data->io_buf, event, sizeof(event))) {
-		BTUSB_INFO("Get rom patch result: OK");
+		BTUSB_DBG("Get rom patch result: OK");
 		ret = 0;
 		goto exit;
 	} else {
@@ -5240,7 +5311,12 @@ static int btmtk_usb_get_rom_patch_result(void)
 		} else {
 			BTUSB_WARN("Get rom patch result: NG");
 			BTUSB_DBG_RAW(g_data->io_buf, ret, "%s: Get unknown event is:", __func__);
-#ifdef CONFIG_AMAZON_METRICS_LOG
+#ifdef CONFIG_AMAZON_MINERVA_METRICS_LOG
+			log_counter_to_vitals_v2(ANDROID_LOG_INFO,
+					BT_GROUP_ID, BT_SCHEMA_ID, BT_DOMAIN, BT_PROGRAM,
+					BT_OPERATION, BT_KEY_PROBE, 1, "count",
+					"patch-result-fail", VITALS_NORMAL, NULL, NULL);
+#elif defined(CONFIG_AMAZON_METRICS_LOG)
 			log_counter_to_vitals(ANDROID_LOG_INFO, BT_DOMAIN, BT_PROGRAM,
 					BT_OPERATION, BT_KEY_PROBE, 1, "count",
 					"patch-result-fail", VITALS_NORMAL);
@@ -5805,7 +5881,7 @@ static void btmtk_usb_intr_complete(struct urb *urb)
 		 * because host will trace this event as other host cmd's event,
 		 * it will cause command timeout
 		 */
-		if ((event_buf[3] == 0x5F || event_buf[3] == 0xBE) && event_buf[4] == 0xFC) {
+		if (event_buf[0] == 0x0E && (event_buf[3] == 0x5F || event_buf[3] == 0xBE) && event_buf[4] == 0xFC) {
 			BTUSB_INFO_RAW(event_buf, urb->actual_length,
 				"%s: discard picus related event:", __func__);
 			goto intr_resub;
@@ -7804,12 +7880,18 @@ static int btmtk_usb_probe(struct usb_interface *intf, const struct usb_device_i
 		USB_MUTEX_UNLOCK();
 		atomic_set(&doing_reset, BTMTK_RESET_DONE);
 		BTUSB_ERR("btmtk_usb_probe end Error 2");
-#ifdef CONFIG_AMAZON_METRICS_LOG
+#ifdef CONFIG_AMAZON_MINERVA_METRICS_LOG
+		log_counter_to_vitals_v2(ANDROID_LOG_INFO,
+				BT_GROUP_ID, BT_SCHEMA_ID, BT_DOMAIN, BT_PROGRAM,
+				BT_OPERATION, BT_KEY_PROBE, 1, "count",
+				"g-data-null", VITALS_NORMAL, NULL, NULL);
+#elif defined(CONFIG_AMAZON_METRICS_LOG)
 		log_counter_to_vitals(ANDROID_LOG_INFO, BT_DOMAIN, BT_PROGRAM,
 				BT_OPERATION, BT_KEY_PROBE, 1, "count",
 				"g-data-null", VITALS_NORMAL);
 #endif
-		return -ENOMEM;
+		err = -ENOMEM;
+		goto reset;
 	}
 
 	if (timer_pending(&g_data->chip_rst_disc_timer)) {
@@ -7819,12 +7901,18 @@ static int btmtk_usb_probe(struct usb_interface *intf, const struct usb_device_i
 
 	if (btmtk_usb_urb_alloc() < 0) {
 		BTUSB_INFO("%s: alloc urb failed\n", __func__);
-#ifdef CONFIG_AMAZON_METRICS_LOG
+#ifdef CONFIG_AMAZON_MINERVA_METRICS_LOG
+		log_counter_to_vitals_v2(ANDROID_LOG_INFO,
+				BT_GROUP_ID, BT_SCHEMA_ID, BT_DOMAIN, BT_PROGRAM,
+				BT_OPERATION, BT_KEY_PROBE, 1, "count",
+				"urb-alloc-fail", VITALS_NORMAL, NULL, NULL);
+#elif defined(CONFIG_AMAZON_METRICS_LOG)
 		log_counter_to_vitals(ANDROID_LOG_INFO, BT_DOMAIN, BT_PROGRAM,
 				BT_OPERATION, BT_KEY_PROBE, 1, "count",
 				"urb-alloc-fail", VITALS_NORMAL);
 #endif
-		return -ENOMEM;
+		err = -ENOMEM;
+		goto reset;
 	}
 
 	btmtk_usb_chip_reset_func_deinit();
@@ -7855,12 +7943,18 @@ static int btmtk_usb_probe(struct usb_interface *intf, const struct usb_device_i
 		btmtk_usb_stop_wait_dump_complete_thread();
 
 		BTUSB_ERR("btmtk_usb_probe end Error 2");
-#ifdef CONFIG_AMAZON_METRICS_LOG
+#ifdef CONFIG_AMAZON_MINERVA_METRICS_LOG
+		log_counter_to_vitals_v2(ANDROID_LOG_INFO,
+				BT_GROUP_ID, BT_SCHEMA_ID, BT_DOMAIN, BT_PROGRAM,
+				BT_OPERATION, BT_KEY_PROBE, 1, "count",
+				"g-data-null-ex", VITALS_NORMAL, NULL, NULL);
+#elif defined(CONFIG_AMAZON_METRICS_LOG)
 		log_counter_to_vitals(ANDROID_LOG_INFO, BT_DOMAIN, BT_PROGRAM,
 				BT_OPERATION, BT_KEY_PROBE, 1, "count",
 				"g-data-null-ex", VITALS_NORMAL);
 #endif
-		return -ENOMEM;
+		err = -ENOMEM;
+		goto reset;
 	}
 
 	if (timer_pending(&chip_reset_timer)) {
@@ -7899,12 +7993,18 @@ static int btmtk_usb_probe(struct usb_interface *intf, const struct usb_device_i
 		btmtk_usb_stop_wait_dump_complete_thread();
 
 		BTUSB_ERR("btmtk_usb_probe end Error 3");
-#ifdef CONFIG_AMAZON_METRICS_LOG
+#ifdef CONFIG_AMAZON_MINERVA_METRICS_LOG
+		log_counter_to_vitals_v2(ANDROID_LOG_INFO,
+				BT_GROUP_ID, BT_SCHEMA_ID, BT_DOMAIN, BT_PROGRAM,
+				BT_OPERATION, BT_KEY_PROBE, 1, "count",
+				"usb-ep-null", VITALS_NORMAL, NULL, NULL);
+#elif defined(CONFIG_AMAZON_METRICS_LOG)
 		log_counter_to_vitals(ANDROID_LOG_INFO, BT_DOMAIN, BT_PROGRAM,
 				BT_OPERATION, BT_KEY_PROBE, 1, "count",
 				"usb-ep-null", VITALS_NORMAL);
 #endif
-		return -ENODEV;
+		err = -ENODEV;
+		goto reset;
 	}
 
 	g_data->udev = interface_to_usbdev(intf);
@@ -7954,7 +8054,7 @@ static int btmtk_usb_probe(struct usb_interface *intf, const struct usb_device_i
 		btmtk_usb_stop_wait_dump_complete_thread();
 
 		BTUSB_ERR("btmtk_usb_probe end Error 4");
-		return err;
+		goto reset;
 	}
 
 	/* Interface numbers are hardcoded in the specification */
@@ -7970,12 +8070,17 @@ static int btmtk_usb_probe(struct usb_interface *intf, const struct usb_device_i
 			btmtk_usb_stop_wait_dump_complete_thread();
 
 			BTUSB_ERR("btmtk_usb_probe end Error 5");
-#ifdef CONFIG_AMAZON_METRICS_LOG
+#ifdef CONFIG_AMAZON_MINERVA_METRICS_LOG
+			log_counter_to_vitals_v2(ANDROID_LOG_INFO,
+					BT_GROUP_ID, BT_SCHEMA_ID, BT_DOMAIN, BT_PROGRAM,
+					BT_OPERATION, BT_KEY_PROBE, 1, "count",
+					"isoc-bind-error", VITALS_NORMAL, NULL, NULL);
+#elif defined(CONFIG_AMAZON_METRICS_LOG)
 			log_counter_to_vitals(ANDROID_LOG_INFO, BT_DOMAIN, BT_PROGRAM,
 					BT_OPERATION, BT_KEY_PROBE, 1, "count",
 					"isoc-bind-error", VITALS_NORMAL);
 #endif
-			return err;
+			goto reset;
 		}
 	}
 
@@ -8023,6 +8128,10 @@ static int btmtk_usb_probe(struct usb_interface *intf, const struct usb_device_i
 
 	BTUSB_INFO("%s: end", __func__);
 	return 0;
+
+reset:
+	btmtk_usb_start_reset_dongle_progress();
+	return err;
 }
 
 static int btmtk_usb_L0_probe(struct usb_interface *intf, const struct usb_device_id *id)
@@ -8083,7 +8192,12 @@ static void btmtk_usb_disconnect(struct usb_interface *intf)
 					__func__, state);
 			btmtk_usb_set_state(BTMTK_USB_STATE_DISCONNECT);
 		}
-#ifdef CONFIG_AMAZON_METRICS_LOG
+#ifdef CONFIG_AMAZON_MINERVA_METRICS_LOG
+		log_counter_to_vitals_v2(ANDROID_LOG_INFO,
+				BT_GROUP_ID, BT_SCHEMA_ID, BT_DOMAIN, BT_PROGRAM,
+				BT_OPERATION, BT_KEY_BUS_DISC, 1, "count",
+				"in-suspend", VITALS_NORMAL, NULL, NULL);
+#elif defined(CONFIG_AMAZON_METRICS_LOG)
 		log_counter_to_vitals(ANDROID_LOG_INFO, BT_DOMAIN, BT_PROGRAM,
 				BT_OPERATION, BT_KEY_BUS_DISC, 1, "count",
 				"in-suspend", VITALS_NORMAL);
@@ -8093,7 +8207,12 @@ static void btmtk_usb_disconnect(struct usb_interface *intf)
 		BTUSB_WARN("%s: state=%d disc happens when driver is in resume, should stay in resume state later!",
 				__func__, state);
 		btmtk_usb_set_state(BTMTK_USB_STATE_RESUME_DISCONNECT);
-#ifdef CONFIG_AMAZON_METRICS_LOG
+#ifdef CONFIG_AMAZON_MINERVA_METRICS_LOG
+		log_counter_to_vitals_v2(ANDROID_LOG_INFO,
+				BT_GROUP_ID, BT_SCHEMA_ID, BT_DOMAIN, BT_PROGRAM,
+				BT_OPERATION, BT_KEY_BUS_DISC, 1, "count",
+				"in-resume", VITALS_NORMAL, NULL, NULL);
+#elif defined(CONFIG_AMAZON_METRICS_LOG)
 		log_counter_to_vitals(ANDROID_LOG_INFO, BT_DOMAIN, BT_PROGRAM,
 				BT_OPERATION, BT_KEY_BUS_DISC, 1, "count",
 				"in-resume", VITALS_NORMAL);
@@ -8101,7 +8220,12 @@ static void btmtk_usb_disconnect(struct usb_interface *intf)
 
 	} else {
 		btmtk_usb_set_state(BTMTK_USB_STATE_DISCONNECT);
-#ifdef CONFIG_AMAZON_METRICS_LOG
+#ifdef CONFIG_AMAZON_MINERVA_METRICS_LOG
+		log_counter_to_vitals_v2(ANDROID_LOG_INFO,
+				BT_GROUP_ID, BT_SCHEMA_ID, BT_DOMAIN, BT_PROGRAM,
+				BT_OPERATION, BT_KEY_BUS_DISC, 1, "count",
+				"in-other-state", VITALS_NORMAL, NULL, NULL);
+#elif defined(CONFIG_AMAZON_METRICS_LOG)
 		log_counter_to_vitals(ANDROID_LOG_INFO, BT_DOMAIN, BT_PROGRAM,
 				BT_OPERATION, BT_KEY_BUS_DISC, 1, "count",
 				"in-other-state", VITALS_NORMAL);
@@ -8226,7 +8350,12 @@ static int btmtk_usb_resume(struct usb_interface *intf)
 			&& g_data->is_mt7668_dongle_state == BTMTK_USB_7668_DONGLE_STATE_ERROR) {
 		BTUSB_INFO("%s: In BTMTK_USB_7668_DONGLE_STATE_ERROR(Could suspend caused), do assert", __func__);
 		btmtk_usb_send_assert_cmd();
-#ifdef CONFIG_AMAZON_METRICS_LOG
+#ifdef CONFIG_AMAZON_MINERVA_METRICS_LOG
+		log_counter_to_vitals_v2(ANDROID_LOG_INFO,
+				BT_GROUP_ID, BT_SCHEMA_ID, BT_DOMAIN, BT_PROGRAM,
+				BT_OPERATION, BT_KEY_WOBLE, 1, "count",
+				"dongle-state-error", VITALS_NORMAL, NULL, NULL);
+#elif defined(CONFIG_AMAZON_METRICS_LOG)
 		log_counter_to_vitals(ANDROID_LOG_INFO, BT_DOMAIN, BT_PROGRAM,
 				BT_OPERATION, BT_KEY_WOBLE, 1, "count",
 				"dongle-state-error", VITALS_NORMAL);
@@ -8255,7 +8384,12 @@ static int btmtk_usb_resume(struct usb_interface *intf)
 		btmtk_usb_woble_wake_lock(g_data);
 		BTUSB_ERR("%s: do assert", __func__);
 		btmtk_usb_send_assert_cmd();
-#ifdef CONFIG_AMAZON_METRICS_LOG
+#ifdef CONFIG_AMAZON_MINERVA_METRICS_LOG
+		log_counter_to_vitals_v2(ANDROID_LOG_INFO,
+				BT_GROUP_ID, BT_SCHEMA_ID, BT_DOMAIN, BT_PROGRAM,
+				BT_OPERATION, BT_KEY_WOBLE, 1, "count",
+				"leave-woble-fail", VITALS_NORMAL, NULL, NULL);
+#elif defined(CONFIG_AMAZON_METRICS_LOG)
 		log_counter_to_vitals(ANDROID_LOG_INFO, BT_DOMAIN, BT_PROGRAM,
 				BT_OPERATION, BT_KEY_WOBLE, 1, "count",
 				"leave-woble-fail", VITALS_NORMAL);
