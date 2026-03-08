@@ -16,7 +16,7 @@ UBOOT_IMAGES="build/u-boot.bin"
 
 ################################################################################
 # NOTE: You must fill in the following with the path to a copy of an
-#       gcc-linaro-aarch64-none-elf-4.8-2013.11_linux (aarch64-none-elf compiler) and
+#       gcc-linaro-aarch64-none-elf-4.9-2014.09_linux (aarch64-none-elf compiler) and
 #       riscv-none-gcc/7.2.0-4-20180606-1631
 ################################################################################
 CROSS_COMPILER_PATH=""
