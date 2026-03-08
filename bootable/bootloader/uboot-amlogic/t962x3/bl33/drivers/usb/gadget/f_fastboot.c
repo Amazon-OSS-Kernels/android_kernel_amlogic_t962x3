@@ -571,6 +571,7 @@ char * get_hw_reverision(){
 }
 #endif
 
+extern void read_arb_version(uint32_t *mvn_1_p, uint32_t *mvn_2_p);
 static void cb_getvar(struct usb_ep *ep, struct usb_request *req)
 {
 	char *cmd = req->buf;
@@ -581,6 +582,7 @@ static void cb_getvar(struct usb_ep *ep, struct usb_request *req)
 	char *s2;
 	char *s3;
 	size_t chars_left;
+	uint32_t mvn_1, mvn_2;
 
 	if (has_boot_slot == 1) {
 		run_command("get_valid_slot", 0);
@@ -670,6 +672,17 @@ static void cb_getvar(struct usb_ep *ep, struct usb_request *req)
 				strncat(response, "super_b", chars_left);
 			}
 		}
+	} else if (!strcmp_l1("arb-version", cmd)) {
+		read_arb_version(&mvn_1, &mvn_2);
+		char arb_version[64]={0};
+		uint32_t bl33 = (mvn_1) & 0xff;
+		uint32_t bl32 = (mvn_1 >> 8) & 0xff;
+		uint32_t bl31 = (mvn_1 >> 16) & 0xff;
+		uint32_t fip  = (mvn_1 >> 24) & 0xff;
+		uint32_t bl30 = (mvn_2 >> 16) & 0xff;
+		uint32_t bl2  = (mvn_2 >> 24) & 0xff;
+		snprintf(arb_version, sizeof(arb_version), "BL33:0x%x,BL32:0x%x,BL31:0x%x,BL30:0x%x,FIP:0x%x,BL2:0x%x\n", bl33,bl32,bl31,bl30,fip,bl2);
+		strncat(response, arb_version, chars_left);
 	} else if (!strcmp_l1("downloadsize", cmd) ||
 		!strcmp_l1("max-download-size", cmd)) {
 		char str_num[12];
@@ -738,6 +751,7 @@ static void cb_getvar(struct usb_ep *ep, struct usb_request *req)
 		if (amzn_get_one_tu_code(one_tu_code, &unlock_code_len)) {
 			strncat(response, "cannot get ontime unlock code", chars_left);
 		} else {
+			one_tu_code[ONETIME_UNLOCK_CODE_LEN] = '\0';
 			snprintf(str_num, sizeof(str_num), "%s", one_tu_code);
 			strncat(response, str_num, chars_left);
 		}
@@ -842,8 +856,15 @@ static void cb_getvar(struct usb_ep *ep, struct usb_request *req)
 	} else if (!strncmp("partition-size", cmd, strlen("partition-size"))) {
 		char str_num[20];
 		struct partitions *pPartition;
-		uint64_t sz;
+		uint64_t sz = 0;
+		int ret = -1;
 		strsep(&cmd, ":");
+		if ((cmd == NULL) || (strcmp(cmd, "") == 0)) {
+			printf("partition name is NULL\n");
+			strcpy(response, "FAILpartition name is NULL");
+			fastboot_tx_write_str(response);
+			return;
+		}
 		printf("partition is %s\n", cmd);
 		if (strcmp(cmd, "userdata") == 0) {
 			strcpy(cmd, "data");
@@ -854,9 +875,15 @@ static void cb_getvar(struct usb_ep *ep, struct usb_request *req)
 		} else {
 			if (!strncmp("bootloader-", cmd, strlen("bootloader-"))) {
 				strsep(&cmd, "-");
-				mmc_boot_size(cmd, &sz);
-				printf("size:%016llx\n", sz);
-				sprintf(str_num, "%016llx", sz);
+				ret = mmc_boot_size(cmd, &sz);
+				printf("ret = %d\n", ret);
+				if (ret == 0) {
+					printf("size:%016llx\n", sz);
+					sprintf(str_num, "%016llx", sz);
+				} else {
+					printf("get partitize error\n");
+					sprintf(str_num, "FAILget partitize error");
+				}
 			} else {
 				pPartition = find_mmc_partition_by_name(cmd);
 				if (pPartition) {
@@ -871,7 +898,7 @@ static void cb_getvar(struct usb_ep *ep, struct usb_request *req)
 					}
 				} else {
 					printf("find_mmc_partition_by_name fail\n");
-					sprintf(str_num, "get fail");
+					sprintf(str_num, "FAILget fail");
 				}
 			}
 			strncat(response, str_num, chars_left);
