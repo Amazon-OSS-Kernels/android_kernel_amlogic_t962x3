@@ -566,7 +566,6 @@ ifeq ($(BUILD_TAG_SUFFIX),DIRTY)
 KBUILD_CFLAGS += -DUBOOT_BUILD_TAG_SUFFIX_DIRTY
 endif
 
-KBUILD_CFLAGS += $(call cc-option,-fno-stack-protector)
 
 KBUILD_CFLAGS	+= -g
 # $(KBUILD_AFLAGS) sets -g, which causes gcc to pass a suitable -g<format>
@@ -606,8 +605,8 @@ KBUILD_CFLAGS += $(KCFLAGS)
 
 ifeq ($(TARGET_PRODUCT), primrose)
 KBUILD_CFLAGS += -DCONFIG_DEVICE_PRODUCT_PRIMROSE
-else ifeq ($(TARGET_PRODUCT), ABC)
-KBUILD_CFLAGS += -DCONFIG_DEVICE_PRODUCT_ABC
+else ifeq ($(TARGET_PRODUCT), hazel)
+KBUILD_CFLAGS += -DCONFIG_DEVICE_PRODUCT_HAZEL
 else ifeq ($(TARGET_PRODUCT), primrosebo)
 KBUILD_CFLAGS += -DCONFIG_DEVICE_PRODUCT_PRIMROSEBO
 endif

@@ -57,7 +57,7 @@
  *            {pstate0, pstate1, pstate2, pstate3} //more than one pstate means use dynamic freq
  *
  */
-#ifdef CONFIG_DEVICE_PRODUCT_ABC
+#ifdef CONFIG_DEVICE_PRODUCT_HAZEL
 ddr_set_t __ddr_setting[] = {
 {
 	//tl1 ref(T309) lpddr4

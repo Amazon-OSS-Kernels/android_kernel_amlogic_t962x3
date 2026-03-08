@@ -34,7 +34,7 @@ Description:
 
 #define DEFAULT_MODEL_SUM_PATH "/tvconfig/model/model_sum.ini"
 
-#ifdef CONFIG_DEVICE_PRODUCT_ABC
+#ifdef CONFIG_DEVICE_PRODUCT_HAZEL
 /*amazon no idme to specify model name,just define a default*/
 #define MODEL_NAME_DEFAULT "DEFAULT"
 /*amazon use idme 'mode_name' to specify model config file*/
@@ -180,7 +180,7 @@ static int handle_tcon_path(void)
 {
 	const char *ini_value = NULL;
 
-#ifdef CONFIG_DEVICE_PRODUCT_ABC
+#ifdef CONFIG_DEVICE_PRODUCT_HAZEL
 	ini_value = IniGetString("tcon_Path", "TCON_BIN_PATH", "null");
 #else
 	ini_value = IniGetString("lcd_Path", "TCON_BIN_PATH", "null");
@@ -1796,7 +1796,7 @@ const char *get_model_sum_path(void)
 {
 	char *model_path;
 
-#ifdef CONFIG_DEVICE_PRODUCT_ABC
+#ifdef CONFIG_DEVICE_PRODUCT_HAZEL
 #if defined(CONFIG_IDME)
 	if (idme_get_var_external(MODEL_CONFIG_FILE_PATH, model_config_file, sizeof(model_config_file)) == 0) {
 		printf("get idme model config file: %s\n", model_config_file);
@@ -1818,7 +1818,7 @@ const char *get_model_sum_path(void)
 	return model_path;
 }
 
-#ifdef CONFIG_DEVICE_PRODUCT_ABC
+#ifdef CONFIG_DEVICE_PRODUCT_HAZEL
 const char *get_model_sum_path_ex(void)
 {
 	char *model_path;
@@ -1884,7 +1884,7 @@ int handle_model_sum(void)
 	char *model;
 	int ret;
 
-#ifdef CONFIG_DEVICE_PRODUCT_ABC
+#ifdef CONFIG_DEVICE_PRODUCT_HAZEL
 #if !defined(MODEL_NAME_DEFAULT)
 	model = getenv("model_name");
 	if (model == NULL) {

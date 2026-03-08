@@ -1195,7 +1195,7 @@ void set_dts_status(void)
 	}
 }
 
-#if defined(CONFIG_DEVICE_PRODUCT_ABC) || defined(CONFIG_DEVICE_PRODUCT_PRIMROSEBO)
+#if defined(CONFIG_DEVICE_PRODUCT_HAZEL) || defined(CONFIG_DEVICE_PRODUCT_PRIMROSEBO)
 void idme_get_oem_data_field(const char *item, char *buf, unsigned buf_len)
 {
 #define MAX_OEM_DATA 1024
@@ -1330,7 +1330,7 @@ int board_late_init(void)
 		}
 	}
 #endif// #ifndef DTB_BIND_KERNEL
-#if defined(CONFIG_DEVICE_PRODUCT_ABC) || defined(CONFIG_DEVICE_PRODUCT_PRIMROSEBO)
+#if defined(CONFIG_DEVICE_PRODUCT_HAZEL) || defined(CONFIG_DEVICE_PRODUCT_PRIMROSEBO)
 	amazon_ammo_config();
 #endif
 #if defined(CONFIG_IDME)
@@ -1368,7 +1368,7 @@ int board_late_init(void)
 	vpu_probe();
 #endif
 	vpp_init();
-#if !(defined(CONFIG_DEVICE_PRODUCT_ABC) || defined(CONFIG_DEVICE_PRODUCT_PRIMROSEBO))
+#if !(defined(CONFIG_DEVICE_PRODUCT_HAZEL) || defined(CONFIG_DEVICE_PRODUCT_PRIMROSEBO))
 	update_tvconfig(hwid);
 #endif
 	run_command("ini_model", 0);
@@ -1454,7 +1454,7 @@ phys_size_t get_effective_memsize(void)
 #endif
 }
 
-#ifdef CONFIG_DEVICE_PRODUCT_ABC
+#ifdef CONFIG_DEVICE_PRODUCT_HAZEL
 static int get_amp_name(char *amp_name, int size)
 {
 	int ret = -1;
@@ -1500,7 +1500,7 @@ exit:
 int checkhw(char * name)
 {
 	char loc_name[64] = {0};
-#ifdef CONFIG_DEVICE_PRODUCT_ABC
+#ifdef CONFIG_DEVICE_PRODUCT_HAZEL
 	char amp_name[64]   = { 0 };
 #endif
 
@@ -1542,7 +1542,7 @@ int checkhw(char * name)
 		memset(loc_name,0,64);
 		strcpy(loc_name, "tm2_t962x3_ab301\0");
 	}
-#ifdef CONFIG_DEVICE_PRODUCT_ABC
+#ifdef CONFIG_DEVICE_PRODUCT_HAZEL
 	if (get_amp_name(amp_name, sizeof(amp_name)) == 0) {
 		strcat(loc_name, "-");
 		strcat(loc_name,amp_name);

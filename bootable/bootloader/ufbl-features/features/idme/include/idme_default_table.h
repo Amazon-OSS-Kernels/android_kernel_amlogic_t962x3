@@ -175,8 +175,8 @@
 #include "idme_default_table_primrosebo.h"
 #endif
 
-#if defined(UFBL_PROJ_ABC)
-#include "idme_default_table_ABC.h"
+#if defined(UFBL_PROJ_HAZEL)
+#include "idme_default_table_hazel.h"
 #endif
 
 #if defined(UFBL_PROJ_ABC)
